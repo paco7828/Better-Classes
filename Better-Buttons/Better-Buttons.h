@@ -1,76 +1,77 @@
-const uint8_t OK_BTN = 8;
-const bool INVERTED = true;
-bool lastBtnState = HIGH;
-bool btnPressed = false;
+class Button {
+private:
+    // Pin
+    uint8_t pin;
+    
+    // State
+    bool inverted;
+    bool lastState = HIGH;
+    bool btnPressed = false;
+    uint8_t pressCount = 0;
 
-unsigned long pressStartTime = 0;
-unsigned long lastReleaseTime = 0;
-unsigned long currentTime = 0;
+    // Time
+    unsigned long pressStartTime = 0;
+    unsigned long lastReleaseTime = 0;
+    unsigned long currentTime = 0;
 
-const unsigned long LONG_PRESS_TIME = 3000;
-const unsigned long MULTI_PRESS_TIMEOUT = 400;
-uint8_t pressCount = 0;
+    // Interval
+    unsigned long longPressTime;
+    unsigned long multiPressTimeout;
 
-void setup(){
-    Serial.begin(9600);
-    pinMode(OK_BTN, INPUT_PULLUP);
-}
+public:
+    // Callbacks
+    void (*shortPressCallback)();
+    void (*longPressCallback)();
+    void (*multiPressCallback)(uint8_t);
 
-void loop(){
-    currentTime = millis();
-    bool rawState = digitalRead(OK_BTN);
-    bool btnState = INVERTED ? !rawState : rawState;
+    // Initialize
+    void begin(uint8_t btnPin, bool invert = true, unsigned long longPress = 3000, unsigned long multiPress = 400) {
+        this->pin = btnPin;
+        this->inverted = invert;
+        this->longPressTime = longPress;
+        this->multiPressTimeout = multiPress;
 
-    // ---- Button Pressed ----
-    if(btnState == LOW && lastBtnState == HIGH){  
-        pressStartTime = currentTime;
-        btnPressed = true;
+        pinMode(pin, INPUT_PULLUP);
+
+        shortPressCallback = nullptr;
+        longPressCallback = nullptr;
+        multiPressCallback = nullptr;
     }
 
-    // ---- Button Released ----
-    if(btnState == HIGH && lastBtnState == LOW){
-        btnPressed = false;
-        unsigned long pressTime = currentTime - pressStartTime;
+    void update() {
+        this->currentTime = millis();
+        bool rawState = digitalRead(pin);
+        bool btnState = this->inverted ? !rawState : rawState;
 
-        if(pressTime < LONG_PRESS_TIME){
-            pressCount++;
-            lastReleaseTime = currentTime;
+        // Button Pressed
+        if (btnState == LOW && this->lastState == HIGH) {
+            this->pressStartTime = this->currentTime;
+            this->btnPressed = true;
         }
+
+        // Button Released
+        if (btnState == HIGH && this->lastState == LOW) {
+            this->btnPressed = false;
+            unsigned long pressTime = this->currentTime - this->pressStartTime;
+            if (pressTime < this->longPressTime) {
+                this->pressCount++;
+                this->lastReleaseTime = this->currentTime;
+            }
+        }
+
+        // Long press
+        if (this->btnPressed && (this->currentTime - this->pressStartTime >= this->longPressTime)) {
+            this->btnPressed = false;
+            this->pressCount = 0;
+            if (longPressCallback) longPressCallback();
+        }
+
+        // Multi-press
+        if (this->pressCount > 0 && (this->currentTime - this->lastReleaseTime >= this->multiPressTimeout)) {
+            if (multiPressCallback) multiPressCallback(this->pressCount);
+            this->pressCount = 0;
+        }
+
+        this->lastState = btnState;
     }
-
-    // ---- Long press detection ----
-    if(btnPressed && (currentTime - pressStartTime >= LONG_PRESS_TIME)){
-        btnPressed = false;  // avoid repeated triggers
-        pressCount = 0;      // long press is not counted as multi-press
-        onLongPress();
-    }
-
-    // ---- Multi-press detection ----
-    if(pressCount > 0 && (currentTime - lastReleaseTime >= MULTI_PRESS_TIMEOUT)){
-        onMultiPress(pressCount);
-        pressCount = 0;
-    }
-
-    lastBtnState = btnState;
-}
-
-
-// ====== CALLBACKS ======
-
-void onShortPress(){
-    Serial.println("Short press detected");
-}
-
-void onLongPress(){
-    Serial.println("Long press (3s) detected");
-}
-
-void onMultiPress(uint8_t count){
-    if(count == 1){
-        onShortPress();
-    } else {
-        Serial.print("Multi-press detected: ");
-        Serial.print(count);
-        Serial.println(" clicks");
-    }
-}
+};

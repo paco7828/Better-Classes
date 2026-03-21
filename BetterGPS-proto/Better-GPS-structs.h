@@ -198,4 +198,4 @@ struct TimeCache {
   int year, month, day, dayIndex, hour, minute, second;
   bool valid;
   unsigned long lastUpdate;
-} timeCache;
+};

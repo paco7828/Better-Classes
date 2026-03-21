@@ -12,17 +12,20 @@ Class > ID:
   NAV --> 0x01 (Navigation):
     NAV-POSLLH --> 0x02 (Longitude / Latitude / Height)
     NAV-STATUS --> 0x03 (Receiver / fix status)
-    NAV-TIMEUTC --> 0x10 (UTC time / date)
+    NAV-DOP    --> 0x04 (Dilution of Precision)
+    NAV-PVT    --> 0x07 (Position Velocity Time - u-blox 7+)
+    NAV-ODO    --> 0x09 (Odometer - u-blox 8+)
+    NAV-TIMEUTC --> 0x21 (UTC time / date)
     NAV-VELNED --> 0x12 (Velocity in North / East / Down)
-    NAV-TIMEGPS --> 0x13 (GPS time solution)
-    NAV-SVINFO / NAV-SVSTATUS --> 0x30 (Satellite info) (Older)
-    NAV-SAT --> 0x35 (Satellite info)
+    NAV-TIMEGPS --> 0x20 (GPS time solution)
+    NAV-SVINFO / NAV-SVSTATUS --> 0x30 (Satellite info) (u-blox 6 and older)
+    NAV-SAT --> 0x35 (Satellite info - u-blox 8+)
     NAV-DGPS --> 0x36 (Differential GPS data)
 
   RXM --> 0x02 (Receiver Manager):
     RXM-RAW --> 0x10 (Raw measurement data)
-    RXM-RAWX --> 0x15 (Extended raw measurements => multi-GNSS)
-    RXM-SFRBX --> 0x13 (Satellite subframe data - ephemeris, almanac, clock info)
+    RXM-RAWX --> 0x15 (Extended raw measurements => multi-GNSS - u-blox 8+)
+    RXM-SFRBX --> 0x13 (Satellite subframe data - ephemeris, almanac, clock info - u-blox 8+)
 
   INF --> 0x04 (Informational messages):
     INF-ERROR --> 0x00
@@ -37,32 +40,35 @@ Class > ID:
   CFG --> 0x06 (Configuration):
     CFG-MSG --> 0x01 (configure message output / enable / disable messages)
     CFG-INF --> 0x02 (configure info messages)
-    CFG-PRT --> 0x04 (configure port - UART / USB / I2C - settings)
-    CFG-RATE --> 0x05 (configure measurement / navigation rate)
-    CFG-CFG --> 0x08 (Save / load / clear configuration)
-    CFG-ANT --> 0x0A (antenna settings)
-    CFG-GNSS --> 0x3E (enable / disable GNSS constellations)
+    CFG-PRT --> 0x00 (configure port - UART / USB / I2C - settings)
+    CFG-RATE --> 0x08 (configure measurement / navigation rate)
+    CFG-CFG --> 0x09 (Save / load / clear configuration)
+    CFG-ANT --> 0x13 (antenna settings)
+    CFG-NAV5 --> 0x24 (navigation engine settings - dynamic platform model)
+    CFG-NAVX5 --> 0x23 (navigation engine expert settings - smoothing etc.)
+    CFG-RXM --> 0x11 (power mode configuration)
+    CFG-GNSS --> 0x3E (enable / disable GNSS constellations - u-blox 8+)
 
   UPD --> 0x09 (Firmware update / memory management / backup operations)
   MON --> 0x0A (Monitoring / Status reporting):
-    MON-VER --> 0x01 (version information)
-    MON-HW --> 0x02 (hardware status)
-    MON-RXBUF --> 0x03 (receiver buffer usage)
+    MON-VER --> 0x04 (version information)
+    MON-HW --> 0x09 (hardware status)
+    MON-RXBUF --> 0x07 (receiver buffer usage)
     MON-STATUS --> 0x08 (status flags)
 
   TIM --> 0x0D (Timing / timepulse / time mark messsages):
     TIM-TP --> 0x01 (Time pulse / marking)
     TIM-MARK --> 0x03 (Time mark event)
 
-  MGA --> 0x13 (Assistance / Multi-GNSS):
-    MGA-ACK --> 0x01 (Multi GNSS assistance acknowledge)
-    MGA-DGNSS --> 0x02 (DGNSS assist message)
+  MGA --> 0x13 (Assistance / Multi-GNSS - u-blox 8+):
+    MGA-ACK --> 0x60 (Multi GNSS assistance acknowledge)
+    MGA-DGNSS --> 0x40 (DGNSS assist message)
 
   LOG --> 0x21 (Logging):
     LOG-RETRIEVEPOS --> 0x02 (log retrieval operations)
 
   SEC --> 0x27 (Security / authentication / unique ID features):
-    SEC-UNIQID --> 0x27 (Unique ID)
+    SEC-UNIQID --> 0x03 (Unique ID)
 
 Length: Payload size in bytes (LSB first, MSB second)
 Payload: Data to be sent
@@ -157,8 +163,8 @@ const uint8_t UBX_RATE_10HZ[14] = {
 /*
 Response:
   iTOW --> Time of week in ms
-  lon --> longitude
-  lan --> latitude
+  lon --> longitude (1e-7 deg)
+  lat --> latitude (1e-7 deg)
   height --> height above ellipsoid in mm
   hMSL --> height above mean sea level in mm
   hAcc --> horizontal accuracy estimate in mm
@@ -172,31 +178,37 @@ const uint8_t UBX_POLL_POSLLH[8] = {
 /*
 Response:
   iTOW --> Time of week in ms
-  gpsFix --> 0 = no fix; 1 = dead reckoning only; 2 = 2D fix; 3 = 3D fix
+  gpsFix --> 0 = no fix; 1 = dead reckoning only; 2 = 2D fix; 3 = 3D fix; 4 = GPS + dead reckoning
   flags --> fix status flags
   fixStat --> additional fix info
   flags2 --> more flags
   ttff --> time to first fix in ms
-  msss -> ms since startup
+  msss --> ms since startup
 */
 const uint8_t UBX_POLL_STATUS[8] = {
   0xB5, 0x62, 0x01, 0x03, 0x00, 0x00, 0x04, 0x0D
 };
 
-// NAV-SAT: Request satellite info
+// NAV-SAT: Request satellite info (u-blox 8+, use NAV-SVINFO 0x30 on older receivers)
 /*
 Response:
   iTOW --> Time of week in ms
   version --> message version
   numSvs --> number of satellites included in this message
   Repeating block:
-    gnssId --> satellite system (0 = GPS; 1 = SBAS; 2 = Galileo; 3 = Beidou)
-    svId --> satellite prn number
+    gnssId --> satellite system:
+      0 = GPS
+      1 = SBAS
+      2 = Galileo
+      3 = BeiDou
+      5 = QZSS
+      6 = GLONASS
+    svId --> satellite PRN number
     cno --> signal strength in dB-Hz
     elev --> elevation in degrees
     azim --> azimuth in degrees
-    prRes --> pseudorange residual
-    flags --> satellite flags (used, health, etc.)
+    prRes --> pseudorange residual in 0.1m
+    flags --> satellite flags (used, health, orbit source, etc.)
 */
 const uint8_t UBX_POLL_SAT[8] = {
   0xB5, 0x62, 0x01, 0x35, 0x00, 0x00, 0x36, 0x74
@@ -207,13 +219,13 @@ const uint8_t UBX_POLL_SAT[8] = {
 Response:
   swVersion --> null terminated string of software version
   hwVersion --> null terminated string of hardware version
-  extension --> additional hardware info
+  extension --> additional extension strings (PROTVER, FWVER, GNSS supported, etc.)
 */
 const uint8_t UBX_POLL_VERSION[8] = {
   0xB5, 0x62, 0x0A, 0x04, 0x00, 0x00, 0x0E, 0x34
 };
 
-// ====================  CFG-RXM: Power modes ====================
+// ==================== CFG-RXM: Power modes ====================
 // Response: ACK-ACK / ACK-NAK
 const uint8_t UBX_POWER_CONTINUOUS[10] = {
   0xB5, 0x62, 0x06, 0x11, 0x02, 0x00, 0x00, 0x00, 0x1F, 0x67
@@ -224,7 +236,7 @@ const uint8_t UBX_POWER_SAVE[10] = {
   0xB5, 0x62, 0x06, 0x11, 0x02, 0x00, 0x01, 0x00, 0x22, 0x67
 };
 
-// ==================== CFG-RXM: Power modes ====================
+// ==================== CFG-CFG: Save / load / clear configuration ====================
 
 // Saves config to flash
 // Response: ACK-ACK / ACK-NAK
@@ -235,7 +247,7 @@ const uint8_t UBX_SAVE_FLASH[21] = {
   0x1C, 0xA2
 };
 
-// Saves config to battery backed ram
+// Saves config to battery backed RAM
 // Response: ACK-ACK / ACK-NAK
 const uint8_t UBX_SAVE_BBR[21] = {
   0xB5, 0x62, 0x06, 0x09, 0x0D, 0x00,
@@ -244,7 +256,7 @@ const uint8_t UBX_SAVE_BBR[21] = {
   0x1B, 0xA1
 };
 
-// Saves config to Flash and BBR too
+// Saves config to Flash and BBR
 // Response: ACK-ACK / ACK-NAK
 const uint8_t UBX_SAVE_ALL[21] = {
   0xB5, 0x62, 0x06, 0x09, 0x0D, 0x00,
@@ -297,7 +309,7 @@ const uint8_t UBX_DISABLE_VTG[16] = {
   0x04, 0x46
 };
 
-// ==================== CFG-GNSS: GPS + Galileo only ====================
+// ==================== CFG-GNSS: GPS + Galileo only (u-blox 8+) ====================
 
 // Response: ACK-ACK / ACK-NAK
 const uint8_t UBX_GNSS_GPS_GALILEO[52] = {
@@ -338,56 +350,166 @@ const uint8_t UBX_ENABLE_SMOOTHING[44] = {
 };
 
 // ==================== NAV-DOP: Request Dilution of Precision ====================
-// Response: NAV_DOP_Response with gDOP, pDOP, tDOP, vDOP, hDOP, nDOP, eDOP
+/*
+Response:
+  iTOW --> Time of week in ms
+  gDOP --> Geometric DOP (0.01 scale)
+  pDOP --> Position DOP (0.01 scale)
+  tDOP --> Time DOP (0.01 scale)
+  vDOP --> Vertical DOP (0.01 scale)
+  hDOP --> Horizontal DOP (0.01 scale)
+  nDOP --> Northing DOP (0.01 scale)
+  eDOP --> Easting DOP (0.01 scale)
+*/
 const uint8_t UBX_POLL_DOP[8] = {
   0xB5, 0x62, 0x01, 0x04, 0x00, 0x00, 0x05, 0x10
 };
 
-// ==================== NAV-PVT: Request Position Velocity Time ====================
-// Response: NAV_PVT_Response with comprehensive position, velocity, and time data
+// ==================== NAV-PVT: Request Position Velocity Time (u-blox 7+) ====================
+/*
+Response:
+  iTOW --> Time of week in ms
+  year, month, day, hour, min, sec --> UTC time
+  valid --> validity flags (date, time, fully resolved)
+  tAcc --> time accuracy estimate in ns
+  nano --> fraction of second in ns
+  fixType --> 0=no fix; 1=dead reckoning; 2=2D; 3=3D; 4=GNSS+DR; 5=time only
+  flags --> fix status flags
+  numSV --> number of satellites used
+  lon --> longitude (1e-7 deg)
+  lat --> latitude (1e-7 deg)
+  height --> height above ellipsoid in mm
+  hMSL --> height above mean sea level in mm
+  hAcc --> horizontal accuracy in mm
+  vAcc --> vertical accuracy in mm
+  velN, velE, velD --> NED velocity in mm/s
+  gSpeed --> ground speed in mm/s
+  headMot --> heading of motion in 1e-5 deg
+  sAcc --> speed accuracy in mm/s
+  headAcc --> heading accuracy in 1e-5 deg
+  pDOP --> position DOP (0.01 scale)
+  headVeh --> heading of vehicle in 1e-5 deg
+*/
 const uint8_t UBX_POLL_PVT[8] = {
   0xB5, 0x62, 0x01, 0x07, 0x00, 0x00, 0x08, 0x19
 };
 
-// ==================== NAV-ODO: Request Odometer Data ====================
-// Response: NAV_ODO_Response with distance traveled
+// ==================== NAV-ODO: Request Odometer Data (u-blox 8+) ====================
+/*
+Response:
+  version --> message version
+  iTOW --> Time of week in ms
+  distance --> ground distance since last reset in m
+  totalDistance --> total cumulative ground distance in m
+  distanceStd --> ground distance accuracy (1 sigma) in m
+*/
 const uint8_t UBX_POLL_ODO[8] = {
   0xB5, 0x62, 0x01, 0x09, 0x00, 0x00, 0x0A, 0x1F
 };
 
 // ==================== NAV-VELNED: Request Velocity North-East-Down ====================
-// Response: NAV_VELNED_Response with velocity in NED frame
+/*
+Response:
+  iTOW --> Time of week in ms
+  velN --> north velocity in cm/s
+  velE --> east velocity in cm/s
+  velD --> down velocity in cm/s
+  speed --> 3D speed in cm/s
+  gSpeed --> ground speed (2D) in cm/s
+  heading --> heading of motion in 1e-5 deg
+  sAcc --> speed accuracy estimate in cm/s
+  cAcc --> course / heading accuracy estimate in 1e-5 deg
+*/
 const uint8_t UBX_POLL_VELNED[8] = {
   0xB5, 0x62, 0x01, 0x12, 0x00, 0x00, 0x13, 0x38
 };
 
 // ==================== NAV-TIMEUTC: Request UTC Time ====================
-// Response: NAV_TIMEUTC_Response with UTC time information
+/*
+Response:
+  iTOW --> Time of week in ms
+  tAcc --> time accuracy estimate in ns
+  nano --> fraction of second in ns (range -1e9 to 1e9)
+  year --> UTC year (1-65535)
+  month --> UTC month (1-12)
+  day --> UTC day (1-31)
+  hour --> UTC hour (0-23)
+  min --> UTC minute (0-59)
+  sec --> UTC second (0-60)
+  valid --> validity flags (validTOW, validWKN, validUTC, utcStandard)
+*/
 const uint8_t UBX_POLL_TIMEUTC[8] = {
   0xB5, 0x62, 0x01, 0x21, 0x00, 0x00, 0x22, 0x67
 };
 
-// ==================== RXM-RAWX: Request Raw Measurements ====================
-// Response: RXM_RAWX_Response with raw pseudorange, carrier phase, and Doppler measurements
+// ==================== RXM-RAWX: Request Raw Measurements (u-blox 8+) ====================
+/*
+Response:
+  rcvTow --> receiver time of week in seconds
+  week --> GPS week number
+  leapS --> GPS leap seconds (GPS-UTC)
+  numMeas --> number of measurements in this block
+  recStat --> receiver tracking status flags
+  Repeating block (one per measurement):
+    prMes --> pseudorange measurement in m
+    cpMes --> carrier phase measurement in cycles
+    doMes --> Doppler measurement in Hz
+    gnssId --> GNSS identifier (0=GPS; 2=Galileo; 3=BeiDou; 6=GLONASS)
+    svId --> satellite identifier
+    sigId --> signal identifier
+    freqId --> GLONASS frequency slot (255 if not GLONASS)
+    locktime --> carrier phase locktime counter in ms
+    cno --> carrier-to-noise density in dB-Hz
+    prStdev --> pseudorange measurement standard deviation
+    cpStdev --> carrier phase measurement standard deviation
+    doStdev --> Doppler measurement standard deviation
+    trkStat --> tracking status flags (prValid, cpValid, halfCyc, subHalfCyc)
+*/
 const uint8_t UBX_POLL_RAWX[8] = {
   0xB5, 0x62, 0x02, 0x15, 0x00, 0x00, 0x17, 0x5D
 };
 
-// ==================== RXM-SFRBX: Request Subframe Data ====================
-// Response: RXM_SFRBX_Response with broadcast navigation data subframes
+// ==================== RXM-SFRBX: Request Subframe Data (u-blox 8+) ====================
+/*
+Response:
+  gnssId --> GNSS identifier
+  svId --> satellite identifier
+  freqId --> GLONASS frequency slot
+  numWords --> number of 32-bit data words
+  chn --> tracking channel
+  version --> message version
+  dwrd[] --> navigation data words (raw subframe data)
+*/
 const uint8_t UBX_POLL_SFRBX[8] = {
   0xB5, 0x62, 0x02, 0x13, 0x00, 0x00, 0x15, 0x59
 };
 
 // ==================== MON-HW: Request Hardware Status ====================
-// Response: MON_HW_Response with antenna status, jamming, noise levels
+/*
+Response:
+  pinSel --> mask of pins set as peripheral / PIO
+  pinBank --> mask of pins set as bank A / B
+  pinDir --> mask of pins set as input / output
+  pinVal --> mask of pins value low / high
+  noisePerMS --> noise level as measured by the GPS core
+  agcCnt --> AGC monitor (counts SIGHI xor SIGLO, range 0 to 8191)
+  aStatus --> antenna status (0=INIT; 1=DONTKNOW; 2=OK; 3=SHORT; 4=OPEN)
+  aPower --> antenna power status (0=OFF; 1=ON; 2=DONTKNOW)
+  flags --> flags (rtcCalib, safeBoot, jammingState, xtalAbsent)
+  usedMask --> mask of pins that are used by the virtual pin manager
+  VP[] --> array of pin mappings for each virtual pin
+  jamInd --> CW jamming indicator (0=no CW jamming; 255=strong CW jamming)
+  pinIrq --> mask of pins value using the PIO IRQ
+  pullH --> mask of pins value using the PIO pull high resistor
+  pullL --> mask of pins value using the PIO pull low resistor
+*/
 const uint8_t UBX_POLL_HW[8] = {
   0xB5, 0x62, 0x0A, 0x09, 0x00, 0x00, 0x13, 0x44
 };
 
 // ==================== CFG-NAV5: Dynamic Platform Models ====================
 
-// Portable mode - default, no restrictions
+// Portable mode - default, no movement restrictions
 // Response: ACK-ACK / ACK-NAK
 const uint8_t UBX_NAV5_PORTABLE[44] = {
   0xB5, 0x62, 0x06, 0x24, 0x24, 0x00,
@@ -435,24 +557,24 @@ const uint8_t UBX_NAV5_AUTOMOTIVE[44] = {
   0x12, 0xD8
 };
 
-// ==================== CFG-GNSS: Additional GNSS Configurations ====================
+// ==================== CFG-GNSS: Additional GNSS Configurations (u-blox 8+) ====================
 
 // All constellations enabled (GPS + Galileo + GLONASS + BeiDou)
 // Response: ACK-ACK / ACK-NAK
 const uint8_t UBX_GNSS_ALL[68] = {
   0xB5, 0x62, 0x06, 0x3E, 0x3C, 0x00,
   0x00, 0x00, 0x20, 0x07,
-  // GPS
+  // GPS (enabled)
   0x00, 0x08, 0x10, 0x00, 0x01, 0x00, 0x01, 0x01,
   // SBAS (disabled)
   0x01, 0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x01,
-  // Galileo
+  // Galileo (enabled)
   0x02, 0x04, 0x08, 0x00, 0x01, 0x00, 0x01, 0x01,
-  // BeiDou
+  // BeiDou (enabled)
   0x03, 0x08, 0x10, 0x00, 0x01, 0x00, 0x01, 0x01,
   // QZSS (disabled)
   0x05, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x01,
-  // GLONASS
+  // GLONASS (enabled)
   0x06, 0x08, 0x0E, 0x00, 0x01, 0x00, 0x01, 0x01,
   0xA5, 0xDB
 };
@@ -462,41 +584,41 @@ const uint8_t UBX_GNSS_ALL[68] = {
 const uint8_t UBX_GNSS_GPS_ONLY[60] = {
   0xB5, 0x62, 0x06, 0x3E, 0x2C, 0x00,
   0x00, 0x00, 0x20, 0x07,
-  // GPS enabled
+  // GPS (enabled)
   0x00, 0x08, 0x10, 0x00, 0x01, 0x00, 0x01, 0x01,
-  // SBAS disabled
+  // SBAS (disabled)
   0x01, 0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x01,
-  // Galileo disabled
+  // Galileo (disabled)
   0x02, 0x04, 0x08, 0x00, 0x00, 0x00, 0x01, 0x01,
-  // BeiDou disabled
+  // BeiDou (disabled)
   0x03, 0x08, 0x10, 0x00, 0x00, 0x00, 0x01, 0x01,
-  // QZSS disabled
+  // QZSS (disabled)
   0x05, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x01,
-  // GLONASS disabled
+  // GLONASS (disabled)
   0x06, 0x08, 0x0E, 0x00, 0x00, 0x00, 0x01, 0x01,
   0x68, 0x36
 };
 
 // ==================== CFG-RST: Reset Commands ====================
 
-// Hot start - preserve all data
-// Response: No ACK (receiver restarts)
+// Hot start - preserve all data (almanac, ephemeris, position, time)
+// Response: No ACK (receiver restarts immediately)
 const uint8_t UBX_RESET_HOT[12] = {
   0xB5, 0x62, 0x06, 0x04, 0x04, 0x00,
   0x00, 0x00, 0x01, 0x00,
   0x0F, 0x66
 };
 
-// Warm start - clear ephemeris
-// Response: No ACK (receiver restarts)
+// Warm start - clear ephemeris, keep almanac and position
+// Response: No ACK (receiver restarts immediately)
 const uint8_t UBX_RESET_WARM[12] = {
   0xB5, 0x62, 0x06, 0x04, 0x04, 0x00,
   0x01, 0x00, 0x01, 0x00,
   0x10, 0x68
 };
 
-// Cold start - clear all data
-// Response: No ACK (receiver restarts)
+// Cold start - clear all data (ephemeris, almanac, position, time)
+// Response: No ACK (receiver restarts immediately)
 const uint8_t UBX_RESET_COLD[12] = {
   0xB5, 0x62, 0x06, 0x04, 0x04, 0x00,
   0xFF, 0xFF, 0x01, 0x00,

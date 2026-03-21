@@ -6,10 +6,12 @@
 #include "Better-GPS-structs.h"
 #include "Better-GPS-config.h"
 
-class BetterGPS
-{
+class BetterGPS {
 private:
   HardwareSerial gpsSerial;
+  TimeCache timeCache;
+  uint32_t _updateIntervalMs = 1000;
+  unsigned long _lastAutoUpdate = 0;
 
   // UBX response buffers
   NAV_POSLLH_Response posllhData;
@@ -42,8 +44,7 @@ private:
   bool lastGeofenceState;
 
   // Current position cache (updated from UBX messages)
-  struct PositionCache
-  {
+  struct PositionCache {
     double latitude;
     double longitude;
     double altitude;
@@ -58,31 +59,25 @@ private:
 
   // ==================== UBX PARSING ====================
 
-  void calculateChecksum(const uint8_t *data, uint16_t len, uint8_t &ckA, uint8_t &ckB)
-  {
+  void calculateChecksum(const uint8_t *data, uint16_t len, uint8_t &ckA, uint8_t &ckB) {
     ckA = 0;
     ckB = 0;
-    for (uint16_t i = 0; i < len; i++)
-    {
+    for (uint16_t i = 0; i < len; i++) {
       ckA += data[i];
       ckB += ckA;
     }
   }
 
-  void sendUBX(const uint8_t *cmd, uint16_t len)
-  {
-    for (uint16_t i = 0; i < len; i++)
-    {
+  void sendUBX(const uint8_t *cmd, uint16_t len) {
+    for (uint16_t i = 0; i < len; i++) {
       gpsSerial.write(cmd[i]);
     }
     gpsSerial.flush();
   }
 
-  void updatePositionCache()
-  {
+  void updatePositionCache() {
     // Update from NAV-POSLLH if available
-    if (posllhData.valid)
-    {
+    if (posllhData.valid) {
       posCache.latitude = posllhData.lat / 1e7;
       posCache.longitude = posllhData.lon / 1e7;
       posCache.altitude = posllhData.hMSL / 1000.0;
@@ -91,8 +86,7 @@ private:
     }
 
     // Update from NAV-PVT if available (more comprehensive)
-    if (pvtData.validData && (pvtData.fixType >= 2))
-    {
+    if (pvtData.validData && (pvtData.fixType >= 2)) {
       posCache.latitude = pvtData.lat / 1e7;
       posCache.longitude = pvtData.lon / 1e7;
       posCache.altitude = pvtData.hMSL / 1000.0;
@@ -106,28 +100,29 @@ private:
     }
 
     // Update from NAV-STATUS
-    if (statusData.valid)
-    {
+    if (statusData.valid) {
       // Fix type validation
-      if (statusData.gpsFix >= 2)
-      { // 2D or 3D fix
-        if (!posCache.valid)
-        {
+      if (statusData.gpsFix >= 2) {  // 2D or 3D fix
+        if (!posCache.valid) {
           // Request position data if we have a fix but no position yet
           requestPosition();
         }
-      }
-      else
-      {
+      } else {
         posCache.valid = false;
       }
     }
   }
 
-  void parseUBXResponse(uint8_t msgClass, uint8_t msgId, uint8_t *payload, uint16_t payloadLen)
-  {
-    if (msgClass == 0x01 && msgId == 0x02 && payloadLen >= 28)
-    {
+  void parseUBXResponse(uint8_t msgClass, uint8_t msgId, uint8_t *payload, uint16_t payloadLen) {
+    if (msgClass == 0x05) {
+      // ACK-ACK vagy ACK-NAK
+      if (!commandQueue.empty() && processingCommand) {
+        commandQueue.pop();
+        processingCommand = false;
+      }
+      return;
+    }
+    if (msgClass == 0x01 && msgId == 0x02 && payloadLen >= 28) {
       // NAV-POSLLH
       posllhData.iTOW = *((uint32_t *)(payload + 0));
       posllhData.lon = *((int32_t *)(payload + 4));
@@ -138,9 +133,7 @@ private:
       posllhData.vAcc = *((uint32_t *)(payload + 24));
       posllhData.valid = true;
       updatePositionCache();
-    }
-    else if (msgClass == 0x01 && msgId == 0x03 && payloadLen >= 16)
-    {
+    } else if (msgClass == 0x01 && msgId == 0x03 && payloadLen >= 16) {
       // NAV-STATUS
       statusData.iTOW = *((uint32_t *)(payload + 0));
       statusData.gpsFix = payload[4];
@@ -151,9 +144,7 @@ private:
       statusData.msss = *((uint32_t *)(payload + 12));
       statusData.valid = true;
       updatePositionCache();
-    }
-    else if (msgClass == 0x01 && msgId == 0x04 && payloadLen >= 18)
-    {
+    } else if (msgClass == 0x01 && msgId == 0x04 && payloadLen >= 18) {
       // NAV-DOP
       dopData.iTOW = *((uint32_t *)(payload + 0));
       dopData.gDOP = *((uint16_t *)(payload + 4));
@@ -164,9 +155,7 @@ private:
       dopData.nDOP = *((uint16_t *)(payload + 14));
       dopData.eDOP = *((uint16_t *)(payload + 16));
       dopData.valid = true;
-    }
-    else if (msgClass == 0x01 && msgId == 0x07 && payloadLen >= 92)
-    {
+    } else if (msgClass == 0x01 && msgId == 0x07 && payloadLen >= 92) {
       // NAV-PVT
       pvtData.iTOW = *((uint32_t *)(payload + 0));
       pvtData.year = *((uint16_t *)(payload + 4));
@@ -199,9 +188,7 @@ private:
       pvtData.headVeh = *((int32_t *)(payload + 84));
       pvtData.validData = true;
       updatePositionCache();
-    }
-    else if (msgClass == 0x01 && msgId == 0x09 && payloadLen >= 20)
-    {
+    } else if (msgClass == 0x01 && msgId == 0x09 && payloadLen >= 20) {
       // NAV-ODO
       odoData.version = payload[0];
       odoData.iTOW = *((uint32_t *)(payload + 4));
@@ -209,9 +196,7 @@ private:
       odoData.totalDistance = *((uint32_t *)(payload + 12));
       odoData.distanceStd = *((uint32_t *)(payload + 16));
       odoData.valid = true;
-    }
-    else if (msgClass == 0x01 && msgId == 0x12 && payloadLen >= 36)
-    {
+    } else if (msgClass == 0x01 && msgId == 0x12 && payloadLen >= 36) {
       // NAV-VELNED
       velnedData.iTOW = *((uint32_t *)(payload + 0));
       velnedData.velN = *((int32_t *)(payload + 4));
@@ -223,9 +208,7 @@ private:
       velnedData.sAcc = *((uint32_t *)(payload + 28));
       velnedData.cAcc = *((uint32_t *)(payload + 32));
       velnedData.valid = true;
-    }
-    else if (msgClass == 0x01 && msgId == 0x21 && payloadLen >= 20)
-    {
+    } else if (msgClass == 0x01 && msgId == 0x21 && payloadLen >= 20) {
       // NAV-TIMEUTC
       timeutcData.iTOW = *((uint32_t *)(payload + 0));
       timeutcData.tAcc = *((uint32_t *)(payload + 4));
@@ -238,17 +221,13 @@ private:
       timeutcData.sec = payload[18];
       timeutcData.valid = payload[19];
       timeutcData.validData = true;
-    }
-    else if (msgClass == 0x01 && msgId == 0x35 && payloadLen >= 8)
-    {
+    } else if (msgClass == 0x01 && msgId == 0x35 && payloadLen >= 8) {
       // NAV-SAT
       satData.iTOW = *((uint32_t *)(payload + 0));
       satData.numSvs = payload[5];
       uint16_t offset = 8;
-      for (int i = 0; i < satData.numSvs && i < 32; i++)
-      {
-        if (offset + 12 <= payloadLen)
-        {
+      for (int i = 0; i < satData.numSvs && i < 32; i++) {
+        if (offset + 12 <= payloadLen) {
           satData.satellites[i].gnssId = payload[offset + 0];
           satData.satellites[i].svId = payload[offset + 1];
           satData.satellites[i].cno = payload[offset + 2];
@@ -261,9 +240,7 @@ private:
         }
       }
       satData.valid = true;
-    }
-    else if (msgClass == 0x02 && msgId == 0x15 && payloadLen >= 16)
-    {
+    } else if (msgClass == 0x02 && msgId == 0x15 && payloadLen >= 16) {
       // RXM-RAWX
       rawxData.rcvTow = *((double *)(payload + 0));
       rawxData.week = *((uint16_t *)(payload + 8));
@@ -271,17 +248,17 @@ private:
       rawxData.numMeas = payload[11];
       rawxData.recStat = payload[12];
       uint16_t offset = 16;
-      for (int i = 0; i < rawxData.numMeas && i < 32; i++)
-      {
-        if (offset + 32 <= payloadLen)
-        {
+      for (int i = 0; i < rawxData.numMeas && i < 32; i++) {
+        if (offset + 32 <= payloadLen) {
           rawxData.measurements[i].prMes = *((double *)(payload + offset + 0));
           rawxData.measurements[i].cpMes = *((double *)(payload + offset + 8));
           rawxData.measurements[i].doMes = *((float *)(payload + offset + 16));
           rawxData.measurements[i].gnssId = payload[offset + 20];
           rawxData.measurements[i].svId = payload[offset + 21];
           rawxData.measurements[i].freqId = payload[offset + 22];
-          rawxData.measurements[i].locktime = *((uint16_t *)(payload + offset + 23));
+          uint16_t lt;
+          memcpy(&lt, payload + offset + 23, 2);
+          rawxData.measurements[i].locktime = lt;
           rawxData.measurements[i].cno = payload[offset + 25];
           rawxData.measurements[i].prStdev = payload[offset + 26];
           rawxData.measurements[i].cpStdev = payload[offset + 27];
@@ -291,9 +268,7 @@ private:
         }
       }
       rawxData.valid = true;
-    }
-    else if (msgClass == 0x02 && msgId == 0x13 && payloadLen >= 8)
-    {
+    } else if (msgClass == 0x02 && msgId == 0x13 && payloadLen >= 8) {
       // RXM-SFRBX
       sfrbxData.gnssId = payload[0];
       sfrbxData.svId = payload[1];
@@ -301,17 +276,13 @@ private:
       sfrbxData.numWords = payload[4];
       sfrbxData.chn = payload[5];
       sfrbxData.version = payload[6];
-      for (int i = 0; i < sfrbxData.numWords && i < 10; i++)
-      {
-        if (8 + i * 4 <= payloadLen)
-        {
+      for (int i = 0; i < sfrbxData.numWords && i < 10; i++) {
+        if (8 + i * 4 <= payloadLen) {
           sfrbxData.dwrd[i] = *((uint32_t *)(payload + 8 + i * 4));
         }
       }
       sfrbxData.valid = true;
-    }
-    else if (msgClass == 0x0A && msgId == 0x09 && payloadLen >= 60)
-    {
+    } else if (msgClass == 0x0A && msgId == 0x09 && payloadLen >= 60) {
       // MON-HW
       hwData.pinSel = *((uint32_t *)(payload + 0));
       hwData.pinBank = *((uint32_t *)(payload + 4));
@@ -323,49 +294,36 @@ private:
       hwData.aPower = payload[21];
       hwData.flags = payload[22];
       hwData.usedMask = *((uint32_t *)(payload + 24));
-      hwData.jamInd = payload[35];
+      hwData.jamInd = payload[45];
       hwData.valid = true;
     }
   }
 
-  void processUBX()
-  {
-    while (gpsSerial.available())
-    {
+  void processUBX() {
+    while (gpsSerial.available()) {
       uint8_t c = gpsSerial.read();
 
-      if (!ubxReceiving)
-      {
-        if (ubxBufferIndex == 0 && c == 0xB5)
-        {
+      if (!ubxReceiving) {
+        if (ubxBufferIndex == 0 && c == 0xB5) {
           ubxBuffer[ubxBufferIndex++] = c;
-        }
-        else if (ubxBufferIndex == 1 && c == 0x62)
-        {
+        } else if (ubxBufferIndex == 1 && c == 0x62) {
           ubxBuffer[ubxBufferIndex++] = c;
           ubxReceiving = true;
-        }
-        else
-        {
+        } else {
           ubxBufferIndex = 0;
         }
-      }
-      else
-      {
+      } else {
         ubxBuffer[ubxBufferIndex++] = c;
 
-        if (ubxBufferIndex >= 6)
-        {
+        if (ubxBufferIndex >= 6) {
           uint16_t payloadLen = ubxBuffer[4] | (ubxBuffer[5] << 8);
           uint16_t totalLen = 6 + payloadLen + 2;
 
-          if (ubxBufferIndex >= totalLen)
-          {
+          if (ubxBufferIndex >= totalLen) {
             uint8_t ckA, ckB;
             calculateChecksum(&ubxBuffer[2], payloadLen + 4, ckA, ckB);
 
-            if (ckA == ubxBuffer[totalLen - 2] && ckB == ubxBuffer[totalLen - 1])
-            {
+            if (ckA == ubxBuffer[totalLen - 2] && ckB == ubxBuffer[totalLen - 1]) {
               parseUBXResponse(ubxBuffer[2], ubxBuffer[3], &ubxBuffer[6], payloadLen);
             }
 
@@ -373,8 +331,7 @@ private:
             ubxBufferIndex = 0;
           }
 
-          if (ubxBufferIndex >= sizeof(ubxBuffer))
-          {
+          else if (ubxBufferIndex >= sizeof(ubxBuffer)) {
             ubxReceiving = false;
             ubxBufferIndex = 0;
           }
@@ -383,78 +340,90 @@ private:
     }
   }
 
-  bool checkACKResponse()
-  {
+  bool checkACKResponse() {
     unsigned long startTime = millis();
+    uint8_t state = 0;
+    uint8_t cls = 0, id = 0;
 
-    while (millis() - startTime < UBX_RESPONSE_TIMEOUT)
-    {
-      if (gpsSerial.available() >= 10)
-      {
-        uint8_t header[10];
-        for (int i = 0; i < 10; i++)
-        {
-          header[i] = gpsSerial.read();
-        }
-
-        if (header[0] == 0xB5 && header[1] == 0x62 && header[2] == 0x05)
-        {
-          if (header[3] == 0x00)
-            return false; // ACK-NAK
-          else if (header[3] == 0x01)
-            return true; // ACK-ACK
-        }
+    while (millis() - startTime < UBX_RESPONSE_TIMEOUT) {
+      if (!gpsSerial.available()) {
+        delay(1);
+        continue;
       }
-      delay(10);
+
+      uint8_t c = gpsSerial.read();
+
+      switch (state) {
+        case 0:
+          if (c == 0xB5) state = 1;
+          break;
+        case 1: state = (c == 0x62) ? 2 : 0; break;
+        case 2:
+          cls = c;
+          state = 3;
+          break;
+        case 3:
+          id = c;
+          state = 4;
+          break;
+        // Length (2 bytes) and payload (if 2 bytes ACK) skip
+        case 4: state = 5; break;  // len LSB
+        case 5: state = 6; break;  // len MSB
+        case 6: state = 7; break;  // payload[0] = ackClass
+        case 7: state = 8; break;  // payload[1] = ackId
+        case 8: state = 9; break;  // ckA
+        case 9:                    // ckB
+          if (cls == 0x05) {
+            return (id == 0x01);  // true = ACK-ACK, false = ACK-NAK
+          }
+          // No ACK => keep searching
+          state = 0;
+          break;
+        default: state = 0; break;
+      }
     }
     return false;
   }
 
-  void processCommandQueue()
-  {
+  void processCommandQueue() {
     if (commandQueue.empty() || processingCommand)
       return;
 
-    processingCommand = true;
     UBXCommand &cmd = commandQueue.front();
 
-    if (millis() - cmd.timestamp > UBX_RESPONSE_TIMEOUT)
-    {
-      if (cmd.retries > 0)
-      {
+    // Send timestamp = 0
+    if (cmd.timestamp == 0) {
+      sendUBX(cmd.data, cmd.length);
+      cmd.timestamp = millis();
+      processingCommand = true;
+      return;
+    }
+
+    // Timeout but no ACK
+    if (millis() - cmd.timestamp > UBX_RESPONSE_TIMEOUT) {
+      if (cmd.retries > 0) {
         sendUBX(cmd.data, cmd.length);
         cmd.retries--;
         cmd.timestamp = millis();
-      }
-      else
-      {
+      } else {
+        // Give up
         commandQueue.pop();
         processingCommand = false;
       }
     }
-
-    if (checkACKResponse())
-    {
-      commandQueue.pop();
-      processingCommand = false;
-    }
   }
 
-  void setBaudrate(uint8_t baudIndex)
-  {
-    if (baudIndex < 8)
-    {
+  void setBaudrate(uint8_t baudIndex) {
+    if (baudIndex < 8) {
       sendUBX(UBX_BAUDRATES[baudIndex], sizeof(UBX_BAUDRATES[0]));
     }
   }
 
-  void setAutobaudrate(uint8_t gpsRx, uint8_t gpsTx)
-  {
-    const int BAUDRATES[] = {4800, 9600, 19200, 38400, 57600, 115200, 230400, 460800};
-    const uint8_t TEST_POLL_MSG[] = {0xB5, 0x62, 0x06, 0x00, 0x00, 0x00, 0x06, 0x18};
+  void setAutobaudrate(uint8_t gpsRx, uint8_t gpsTx) {
+    const int BAUDRATES[] = { 4800, 9600, 19200, 38400, 57600, 115200, 230400, 460800 };
+    const uint8_t TEST_POLL_MSG[] = { 0xB5, 0x62, 0x06, 0x00, 0x00, 0x00, 0x06, 0x18 };
 
-    for (int i = 0; i < 8; i++)
-    {
+    for (int i = 0; i < 8; i++) {
       gpsSerial.begin(BAUDRATES[i], SERIAL_8N1, gpsRx, gpsTx);
       delay(250);
 
@@ -465,14 +434,12 @@ private:
       delay(50);
 
       // Send test message
-      for (size_t j = 0; j < sizeof(TEST_POLL_MSG); j++)
-      {
+      for (size_t j = 0; j < sizeof(TEST_POLL_MSG); j++) {
         gpsSerial.write(TEST_POLL_MSG[j]);
       }
       gpsSerial.flush();
 
-      if (checkACKResponse())
-      {
+      if (checkACKResponse()) {
         // Found working baud rate, keep using it
         Serial.print("GPS found at ");
         Serial.print(BAUDRATES[i]);
@@ -483,23 +450,20 @@ private:
 
     // If nothing worked, default to 9600
     Serial.println("GPS auto baud failed, defaulting to 9600");
-    gpsSerial.begin(38400, SERIAL_8N1, gpsRx, gpsTx);
+    gpsSerial.begin(9600, SERIAL_8N1, gpsRx, gpsTx);
   }
 
-  int calculateDayOfWeek(int y, int m, int d)
-  {
-    if (m < 3)
-    {
+  int calculateDayOfWeek(int y, int m, int d) {
+    if (m < 3) {
       m += 12;
       y -= 1;
     }
     int k = y % 100, j = y / 100;
     int f = d + 13 * (m + 1) / 5 + k + k / 4 + j / 4 + 5 * j;
-    return (f + 1) % 7;
+    return ((f % 7) + 6) % 7;
   }
 
-  bool isDaylightSavingTime(int year, int month, int day, int hour)
-  {
+  bool isDaylightSavingTime(int year, int month, int day, int hour) {
     if (!autoDST)
       return false;
 
@@ -508,8 +472,7 @@ private:
     if (month > 3 && month < 10)
       return true;
 
-    if (month == 3)
-    {
+    if (month == 3) {
       int lastSunday = 31;
       while (calculateDayOfWeek(year, 3, lastSunday) != 0)
         lastSunday--;
@@ -520,8 +483,7 @@ private:
       return hour >= 1;
     }
 
-    if (month == 10)
-    {
+    if (month == 10) {
       int lastSunday = 31;
       while (calculateDayOfWeek(year, 10, lastSunday) != 0)
         lastSunday--;
@@ -535,11 +497,9 @@ private:
     return false;
   }
 
-  void convertToLocalTime(int &year, int &month, int &day, int &hour, int &minute, int &second)
-  {
+  void convertToLocalTime(int &year, int &month, int &day, int &hour, int &minute, int &second) {
     float offset = timezoneOffset;
-    if (isDaylightSavingTime(year, month, day, hour))
-    {
+    if (isDaylightSavingTime(year, month, day, hour)) {
       offset += 1.0;
     }
 
@@ -549,50 +509,40 @@ private:
     hour += offsetHours;
     minute += offsetMinutes;
 
-    if (minute >= 60)
-    {
+    if (minute >= 60) {
       minute -= 60;
       hour++;
-    }
-    else if (minute < 0)
-    {
+    } else if (minute < 0) {
       minute += 60;
       hour--;
     }
 
-    if (hour >= 24)
-    {
+    if (hour >= 24) {
       hour -= 24;
       day++;
-      int daysInMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+      int daysInMonth[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
       bool isLeapYear = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
       if (isLeapYear)
         daysInMonth[1] = 29;
 
-      if (day > daysInMonth[month - 1])
-      {
+      if (day > daysInMonth[month - 1]) {
         day = 1;
         month++;
-        if (month > 12)
-        {
+        if (month > 12) {
           month = 1;
           year++;
         }
       }
-    }
-    else if (hour < 0)
-    {
+    } else if (hour < 0) {
       hour += 24;
       day--;
-      if (day < 1)
-      {
+      if (day < 1) {
         month--;
-        if (month < 1)
-        {
+        if (month < 1) {
           month = 12;
           year--;
         }
-        int daysInMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+        int daysInMonth[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
         bool isLeapYear = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
         if (isLeapYear)
           daysInMonth[1] = 29;
@@ -601,10 +551,8 @@ private:
     }
   }
 
-  void updateTimeCache()
-  {
-    if (!hasFix())
-    {
+  void updateTimeCache() {
+    if (!hasFix()) {
       timeCache.valid = false;
       return;
     }
@@ -612,26 +560,21 @@ private:
     // Try to get time from PVT first (most comprehensive)
     int year, month, day, hour, minute, second;
 
-    if (pvtData.validData && (pvtData.valid & 0x03) == 0x03)
-    {
+    if (pvtData.validData && (pvtData.valid & 0x03) == 0x03) {
       year = pvtData.year;
       month = pvtData.month;
       day = pvtData.day;
       hour = pvtData.hour;
       minute = pvtData.minute;
       second = pvtData.second;
-    }
-    else if (timeutcData.validData && (timeutcData.valid & 0x03) == 0x03)
-    {
+    } else if (timeutcData.validData && (timeutcData.valid & 0x03) == 0x03) {
       year = timeutcData.year;
       month = timeutcData.month;
       day = timeutcData.day;
       hour = timeutcData.hour;
       minute = timeutcData.min;
       second = timeutcData.sec;
-    }
-    else
-    {
+    } else {
       timeCache.valid = false;
       return;
     }
@@ -649,8 +592,7 @@ private:
     timeCache.lastUpdate = millis();
   }
 
-  bool checkGeofence()
-  {
+  bool checkGeofence() {
     if (!geofence.active || !hasFix())
       return false;
 
@@ -661,8 +603,7 @@ private:
 
 public:
   BetterGPS()
-      : gpsSerial(1)
-  {
+    : gpsSerial(1) {
     timeCache.valid = false;
     posllhData.valid = false;
     statusData.valid = false;
@@ -693,10 +634,10 @@ public:
     posCache.course = 0;
     posCache.satellites = 0;
     posCache.hdop = 99.99;
+    posCache.lastUpdate = 0;
   }
 
-  void begin(int gpsRx, int gpsTx = -1)
-  {
+  void begin(int gpsRx, int gpsTx = -1) {
     setAutobaudrate(gpsRx, gpsTx);
     delay(500);
 
@@ -707,33 +648,27 @@ public:
     delay(100);
 
     // Disable NMEA messages (we're using UBX only)
-    if (DISABLE_GGA)
-    {
+    if (DISABLE_GGA) {
       sendUBX(UBX_DISABLE_GGA, sizeof(UBX_DISABLE_GGA));
       delay(50);
     }
-    if (DISABLE_GLL)
-    {
+    if (DISABLE_GLL) {
       sendUBX(UBX_DISABLE_GLL, sizeof(UBX_DISABLE_GLL));
       delay(50);
     }
-    if (DISABLE_GSA)
-    {
+    if (DISABLE_GSA) {
       sendUBX(UBX_DISABLE_GSA, sizeof(UBX_DISABLE_GSA));
       delay(50);
     }
-    if (DISABLE_GSV)
-    {
+    if (DISABLE_GSV) {
       sendUBX(UBX_DISABLE_GSV, sizeof(UBX_DISABLE_GSV));
       delay(50);
     }
-    if (DISABLE_RMC)
-    {
+    if (DISABLE_RMC) {
       sendUBX(UBX_DISABLE_RMC, sizeof(UBX_DISABLE_RMC));
       delay(50);
     }
-    if (DISABLE_VTG)
-    {
+    if (DISABLE_VTG) {
       sendUBX(UBX_DISABLE_VTG, sizeof(UBX_DISABLE_VTG));
       delay(50);
     }
@@ -744,23 +679,19 @@ public:
     setSmoothing(STARTUP_SMOOTHING);
     delay(100);
 
-    if (STARTUP_POSITION)
-    {
+    if (STARTUP_POSITION) {
       requestPosition();
       delay(200);
     }
-    if (STARTUP_STATUS)
-    {
+    if (STARTUP_STATUS) {
       requestStatus();
       delay(200);
     }
-    if (STARTUP_SATELLITE_INFO)
-    {
+    if (STARTUP_SATELLITE_INFO) {
       requestSatellites();
       delay(200);
     }
-    if (STARTUP_VERSION)
-    {
+    if (STARTUP_VERSION) {
       requestVersion();
       delay(200);
     }
@@ -769,161 +700,230 @@ public:
     delay(500);
   }
 
-  void update()
-  {
+  void update() {
     processUBX();
     processCommandQueue();
 
-    // Auto-request position updates if we have a fix
-    static unsigned long lastAutoUpdate = 0;
-    if (statusData.valid && statusData.gpsFix >= 2)
-    {
-      if (millis() - lastAutoUpdate > 1000)
-      { // Request every second
+    if (statusData.valid && statusData.gpsFix >= 2) {
+      if (millis() - _lastAutoUpdate >= _updateIntervalMs) {
         requestPosition();
-        lastAutoUpdate = millis();
+        _lastAutoUpdate = millis();
       }
     }
 
-    if (posCache.valid && geofence.active)
-    {
+    if (posCache.valid && geofence.active) {
       bool currentState = checkGeofence();
-      if (currentState != lastGeofenceState)
-      {
+      if (currentState != lastGeofenceState) {
         lastGeofenceState = currentState;
       }
     }
   }
 
-  void setUpdateRate(UpdateRate rate)
-  {
-    switch (rate)
-    {
-    case UpdateRate::HZ_1:
-      sendUBX(UBX_RATE_1HZ, sizeof(UBX_RATE_1HZ));
-      break;
-    case UpdateRate::HZ_5:
-      sendUBX(UBX_RATE_5HZ, sizeof(UBX_RATE_5HZ));
-      break;
-    case UpdateRate::HZ_10:
-      sendUBX(UBX_RATE_10HZ, sizeof(UBX_RATE_10HZ));
-      break;
+  void setUpdateRate(UpdateRate rate) {
+    switch (rate) {
+      case UpdateRate::HZ_1:
+        sendUBX(UBX_RATE_1HZ, sizeof(UBX_RATE_1HZ));
+        _updateIntervalMs = 1000;
+        break;
+      case UpdateRate::HZ_5:
+        sendUBX(UBX_RATE_5HZ, sizeof(UBX_RATE_5HZ));
+        _updateIntervalMs = 200;
+        break;
+      case UpdateRate::HZ_10:
+        sendUBX(UBX_RATE_10HZ, sizeof(UBX_RATE_10HZ));
+        _updateIntervalMs = 100;
+        break;
     }
     delay(100);
   }
 
-  void requestPosition()
-  {
+  void requestPosition() {
     posllhData.valid = false;
     sendUBX(UBX_POLL_POSLLH, sizeof(UBX_POLL_POSLLH));
   }
 
-  void requestStatus()
-  {
+  void requestStatus() {
     statusData.valid = false;
     sendUBX(UBX_POLL_STATUS, sizeof(UBX_POLL_STATUS));
   }
 
-  void requestDOP()
-  {
+  void requestDOP() {
     dopData.valid = false;
     sendUBX(UBX_POLL_DOP, sizeof(UBX_POLL_DOP));
   }
 
-  void requestPVT()
-  {
+  void requestPVT() {
     pvtData.validData = false;
     sendUBX(UBX_POLL_PVT, sizeof(UBX_POLL_PVT));
   }
 
-  void requestOdometer()
-  {
+  void requestOdometer() {
     odoData.valid = false;
     sendUBX(UBX_POLL_ODO, sizeof(UBX_POLL_ODO));
   }
 
-  void requestVelocity()
-  {
+  void requestVelocity() {
     velnedData.valid = false;
     sendUBX(UBX_POLL_VELNED, sizeof(UBX_POLL_VELNED));
   }
 
-  void requestTimeUTC()
-  {
+  void requestTimeUTC() {
     timeutcData.validData = false;
     sendUBX(UBX_POLL_TIMEUTC, sizeof(UBX_POLL_TIMEUTC));
   }
 
-  void requestSatellites()
-  {
+  void requestSatellites() {
     satData.valid = false;
     sendUBX(UBX_POLL_SAT, sizeof(UBX_POLL_SAT));
   }
 
-  void requestRawMeasurements()
-  {
+  void requestRawMeasurements() {
     rawxData.valid = false;
     sendUBX(UBX_POLL_RAWX, sizeof(UBX_POLL_RAWX));
   }
 
-  void requestSubframeData()
-  {
+  void requestSubframeData() {
     sfrbxData.valid = false;
     sendUBX(UBX_POLL_SFRBX, sizeof(UBX_POLL_SFRBX));
   }
 
-  void requestVersion()
-  {
+  void requestVersion() {
     sendUBX(UBX_POLL_VERSION, sizeof(UBX_POLL_VERSION));
   }
 
-  void requestHardwareStatus()
-  {
+  void requestHardwareStatus() {
     hwData.valid = false;
     sendUBX(UBX_POLL_HW, sizeof(UBX_POLL_HW));
   }
 
-  void setPowerMode(PowerMode mode)
-  {
+  void setPowerMode(PowerMode mode) {
     if (mode == PowerMode::PowerSave)
       sendUBX(UBX_POWER_SAVE, sizeof(UBX_POWER_SAVE));
     else
       sendUBX(UBX_POWER_CONTINUOUS, sizeof(UBX_POWER_CONTINUOUS));
   }
 
-  void setDynamicModel(DynamicModel model)
-  {
-    switch (model)
-    {
-    case DynamicModel::Portable:
-      sendUBX(UBX_NAV5_PORTABLE, sizeof(UBX_NAV5_PORTABLE));
-      break;
-    case DynamicModel::Stationary:
-      sendUBX(UBX_NAV5_STATIONARY, sizeof(UBX_NAV5_STATIONARY));
-      break;
-    case DynamicModel::Pedestrian:
-      sendUBX(UBX_NAV5_PEDESTRIAN, sizeof(UBX_NAV5_PEDESTRIAN));
-      break;
-    case DynamicModel::Automotive:
-      sendUBX(UBX_NAV5_AUTOMOTIVE, sizeof(UBX_NAV5_AUTOMOTIVE));
-      break;
+  bool setDynamicModel(DynamicModel model) {
+    switch (model) {
+      case DynamicModel::Portable:
+        sendUBX(UBX_NAV5_PORTABLE, sizeof(UBX_NAV5_PORTABLE));
+        break;
+      case DynamicModel::Stationary:
+        sendUBX(UBX_NAV5_STATIONARY, sizeof(UBX_NAV5_STATIONARY));
+        break;
+      case DynamicModel::Pedestrian:
+        sendUBX(UBX_NAV5_PEDESTRIAN, sizeof(UBX_NAV5_PEDESTRIAN));
+        break;
+      case DynamicModel::Automotive:
+        sendUBX(UBX_NAV5_AUTOMOTIVE, sizeof(UBX_NAV5_AUTOMOTIVE));
+        break;
+      case DynamicModel::Sea:
+      case DynamicModel::Airborne1g:
+      case DynamicModel::Airborne2g:
+      case DynamicModel::Airborne4g:
+        // No pre-calculated command for these
+        return false;
+      default:
+        return false;
     }
     delay(100);
+    return true;
   }
 
-  void setGNSS(bool gps, bool galileo, bool glonass, bool beidou)
-  {
-    if (gps && galileo && glonass && beidou)
+  bool setGNSS(bool gps, bool galileo, bool glonass, bool beidou) {
+    // Pre-calculated payloads
+    if (gps && galileo && glonass && beidou) {
       sendUBX(UBX_GNSS_ALL, sizeof(UBX_GNSS_ALL));
-    else if (gps && galileo && !glonass && !beidou)
+    } else if (gps && galileo && !glonass && !beidou) {
       sendUBX(UBX_GNSS_GPS_GALILEO, sizeof(UBX_GNSS_GPS_GALILEO));
-    else if (gps && !galileo && !glonass && !beidou)
+    } else if (gps && !galileo && !glonass && !beidou) {
       sendUBX(UBX_GNSS_GPS_ONLY, sizeof(UBX_GNSS_GPS_ONLY));
+    } else {
+      // Dynamic payload for other combinations
+      uint8_t frame[60];
+      frame[0] = 0xB5;
+      frame[1] = 0x62;
+      frame[2] = 0x06;
+      frame[3] = 0x3E;
+      frame[4] = 0x34;
+      frame[5] = 0x00;  // payload length = 52 bytes (0x34), total frame = 60
+
+      uint8_t *p = &frame[6];
+      p[0] = 0x00;
+      p[1] = 0x00;
+      p[2] = 0x20;
+      p[3] = 0x06;  // header, 6 block
+
+      // GPS
+      p[4] = 0x00;
+      p[5] = 0x08;
+      p[6] = 0x10;
+      p[7] = 0x00;
+      p[8] = gps ? 0x01 : 0x00;
+      p[9] = 0x00;
+      p[10] = 0x01;
+      p[11] = 0x01;
+      // SBAS (always off)
+      p[12] = 0x01;
+      p[13] = 0x00;
+      p[14] = 0x03;
+      p[15] = 0x00;
+      p[16] = 0x00;
+      p[17] = 0x00;
+      p[18] = 0x01;
+      p[19] = 0x01;
+      // Galileo
+      p[20] = 0x02;
+      p[21] = 0x04;
+      p[22] = 0x08;
+      p[23] = 0x00;
+      p[24] = galileo ? 0x01 : 0x00;
+      p[25] = 0x00;
+      p[26] = 0x01;
+      p[27] = 0x01;
+      // BeiDou
+      p[28] = 0x03;
+      p[29] = 0x08;
+      p[30] = 0x10;
+      p[31] = 0x00;
+      p[32] = beidou ? 0x01 : 0x00;
+      p[33] = 0x00;
+      p[34] = 0x01;
+      p[35] = 0x01;
+      // QZSS (always off)
+      p[36] = 0x05;
+      p[37] = 0x00;
+      p[38] = 0x03;
+      p[39] = 0x00;
+      p[40] = 0x00;
+      p[41] = 0x00;
+      p[42] = 0x01;
+      p[43] = 0x01;
+      // GLONASS
+      p[44] = 0x06;
+      p[45] = 0x08;
+      p[46] = 0x0E;
+      p[47] = 0x00;
+      p[48] = glonass ? 0x01 : 0x00;
+      p[49] = 0x00;
+      p[50] = 0x01;
+      p[51] = 0x01;
+
+      uint8_t ckA = 0, ckB = 0;
+      for (uint8_t i = 2; i < 58; i++) {
+        ckA += frame[i];
+        ckB += ckA;
+      }
+      frame[58] = ckA;
+      frame[59] = ckB;
+
+      sendUBX(frame, 60);
+    }
     delay(100);
+    return true;
   }
 
-  void setSmoothing(bool enable)
-  {
+  void setSmoothing(bool enable) {
     if (enable)
       sendUBX(UBX_ENABLE_SMOOTHING, sizeof(UBX_ENABLE_SMOOTHING));
     else
@@ -931,57 +931,48 @@ public:
     delay(100);
   }
 
-  void saveConfig(SaveLocation target = SaveLocation::Both)
-  {
-    switch (target)
-    {
-    case SaveLocation::Flash:
-      sendUBX(UBX_SAVE_FLASH, sizeof(UBX_SAVE_FLASH));
-      break;
-    case SaveLocation::BBR:
-      sendUBX(UBX_SAVE_BBR, sizeof(UBX_SAVE_BBR));
-      break;
-    case SaveLocation::Both:
-      sendUBX(UBX_SAVE_ALL, sizeof(UBX_SAVE_ALL));
-      break;
+  void saveConfig(SaveLocation target = SaveLocation::Both) {
+    switch (target) {
+      case SaveLocation::Flash:
+        sendUBX(UBX_SAVE_FLASH, sizeof(UBX_SAVE_FLASH));
+        break;
+      case SaveLocation::BBR:
+        sendUBX(UBX_SAVE_BBR, sizeof(UBX_SAVE_BBR));
+        break;
+      case SaveLocation::Both:
+        sendUBX(UBX_SAVE_ALL, sizeof(UBX_SAVE_ALL));
+        break;
     }
     delay(200);
   }
 
-  void resetHot()
-  {
+  void resetHot() {
     sendUBX(UBX_RESET_HOT, sizeof(UBX_RESET_HOT));
     delay(1000);
   }
 
-  void resetWarm()
-  {
+  void resetWarm() {
     sendUBX(UBX_RESET_WARM, sizeof(UBX_RESET_WARM));
     delay(2000);
   }
 
-  void resetCold()
-  {
+  void resetCold() {
     sendUBX(UBX_RESET_COLD, sizeof(UBX_RESET_COLD));
     delay(3000);
   }
 
-  void sendCustomUBX(const uint8_t *cmd, uint16_t len)
-  {
+  void sendCustomUBX(const uint8_t *cmd, uint16_t len) {
     sendUBX(cmd, len);
   }
 
-  bool hasFix()
-  {
+  bool hasFix() {
     // Check if we have a valid fix from status data
-    if (statusData.valid && statusData.gpsFix >= 2)
-    {
+    if (statusData.valid && statusData.gpsFix >= 2) {
       return true;
     }
 
     // Also check PVT data
-    if (pvtData.validData && pvtData.fixType >= 2)
-    {
+    if (pvtData.validData && pvtData.fixType >= 2) {
       return true;
     }
 
@@ -989,43 +980,35 @@ public:
     return posCache.valid && (millis() - posCache.lastUpdate < 5000);
   }
 
-  FixType getFixType()
-  {
+  FixType getFixType() {
     return statusData.valid ? static_cast<FixType>(statusData.gpsFix) : FixType::NoFix;
   }
 
-  double getLatitude()
-  {
+  double getLatitude() {
     return posCache.valid ? posCache.latitude : 0.0;
   }
 
-  double getLongitude()
-  {
+  double getLongitude() {
     return posCache.valid ? posCache.longitude : 0.0;
   }
 
-  double getAltitude()
-  {
+  double getAltitude() {
     return posCache.valid ? posCache.altitude : 0.0;
   }
 
-  double getSpeedKmph()
-  {
+  double getSpeedKmph() {
     return posCache.valid ? posCache.speedKmph : 0.0;
   }
 
-  double getSpeedMps()
-  {
+  double getSpeedMps() {
     return posCache.valid ? posCache.speedMps : 0.0;
   }
 
-  double getCourse()
-  {
+  double getCourse() {
     return posCache.valid ? posCache.course : 0.0;
   }
 
-  uint8_t getSatelliteCount()
-  {
+  uint8_t getSatelliteCount() {
     if (pvtData.validData)
       return pvtData.numSV;
     if (satData.valid)
@@ -1033,149 +1016,109 @@ public:
     return 0;
   }
 
-  double getHDOP()
-  {
+  double getHDOP() {
     if (dopData.valid)
       return dopData.hDOP / 100.0;
-    if (pvtData.validData)
-      return pvtData.pDOP / 100.0;
     return 99.99;
   }
 
-  NAV_POSLLH_Response getPOSLLH()
-  {
+  const NAV_POSLLH_Response &getPOSLLH() const {
     return posllhData;
   }
-
-  NAV_STATUS_Response getStatus()
-  {
+  const NAV_STATUS_Response &getStatus() const {
     return statusData;
   }
-
-  NAV_DOP_Response getDOP()
-  {
+  const NAV_DOP_Response &getDOP() const {
     return dopData;
   }
-
-  NAV_PVT_Response getPVT()
-  {
+  const NAV_PVT_Response &getPVT() const {
     return pvtData;
   }
-
-  NAV_ODO_Response getOdometer()
-  {
+  const NAV_ODO_Response &getOdometer() const {
     return odoData;
   }
-
-  NAV_VELNED_Response getVelocity()
-  {
+  const NAV_VELNED_Response &getVelocity() const {
     return velnedData;
   }
-
-  NAV_TIMEUTC_Response getTimeUTC()
-  {
+  const NAV_TIMEUTC_Response &getTimeUTC() const {
     return timeutcData;
   }
-
-  NAV_SAT_Response getSatellites()
-  {
+  const NAV_SAT_Response &getSatellites() const {
     return satData;
   }
-
-  RXM_RAWX_Response getRawMeasurements()
-  {
+  const RXM_RAWX_Response &getRawMeasurements() const {
     return rawxData;
   }
-
-  RXM_SFRBX_Response getSubframeData()
-  {
+  const RXM_SFRBX_Response &getSubframeData() const {
     return sfrbxData;
   }
-
-  MON_HW_Response getHardwareStatus()
-  {
+  const MON_HW_Response &getHardwareStatus() const {
     return hwData;
   }
 
-  bool isPositionReady()
-  {
+  bool isPositionReady() {
     return posllhData.valid;
   }
 
-  bool isStatusReady()
-  {
+  bool isStatusReady() {
     return statusData.valid;
   }
 
-  bool isDOPReady()
-  {
+  bool isDOPReady() {
     return dopData.valid;
   }
 
-  bool isPVTReady()
-  {
+  bool isPVTReady() {
     return pvtData.validData;
   }
 
-  bool isOdometerReady()
-  {
+  bool isOdometerReady() {
     return odoData.valid;
   }
 
-  bool isVelocityReady()
-  {
+  bool isVelocityReady() {
     return velnedData.valid;
   }
 
-  bool isTimeUTCReady()
-  {
+  bool isTimeUTCReady() {
     return timeutcData.validData;
   }
 
-  bool isSatellitesReady()
-  {
+  bool isSatellitesReady() {
     return satData.valid;
   }
 
-  bool isRawMeasurementsReady()
-  {
+  bool isRawMeasurementsReady() {
     return rawxData.valid;
   }
 
-  bool isSubframeDataReady()
-  {
+  bool isSubframeDataReady() {
     return sfrbxData.valid;
   }
 
-  bool isHardwareStatusReady()
-  {
+  bool isHardwareStatusReady() {
     return hwData.valid;
   }
 
-  bool waitForPosition(uint32_t timeout_ms)
-  {
+  bool waitForPosition(uint32_t timeout_ms) {
     unsigned long start = millis();
-    while (!posllhData.valid && (millis() - start) < timeout_ms)
-    {
+    while (!posllhData.valid && (millis() - start) < timeout_ms) {
       update();
       delay(10);
     }
     return posllhData.valid;
   }
 
-  bool waitForSatellites(uint32_t timeout_ms)
-  {
+  bool waitForSatellites(uint32_t timeout_ms) {
     unsigned long start = millis();
-    while (!satData.valid && (millis() - start) < timeout_ms)
-    {
+    while (!satData.valid && (millis() - start) < timeout_ms) {
       update();
       delay(10);
     }
     return satData.valid;
   }
 
-  uint8_t getUsedSatelliteCount()
-  {
+  uint8_t getUsedSatelliteCount() {
     if (!satData.valid)
       return 0;
     uint8_t count = 0;
@@ -1185,8 +1128,7 @@ public:
     return count;
   }
 
-  uint8_t getSatelliteCountByGNSS(uint8_t gnssId)
-  {
+  uint8_t getSatelliteCountByGNSS(uint8_t gnssId) {
     if (!satData.valid)
       return 0;
     uint8_t count = 0;
@@ -1196,8 +1138,7 @@ public:
     return count;
   }
 
-  uint8_t getUsedSatelliteCountByGNSS(uint8_t gnssId)
-  {
+  uint8_t getUsedSatelliteCountByGNSS(uint8_t gnssId) {
     if (!satData.valid)
       return 0;
     uint8_t count = 0;
@@ -1207,8 +1148,7 @@ public:
     return count;
   }
 
-  float getAverageCNO()
-  {
+  float getAverageCNO() {
     if (!satData.valid || satData.numSvs == 0)
       return 0.0;
     float sum = 0;
@@ -1217,18 +1157,49 @@ public:
     return sum / satData.numSvs;
   }
 
-  bool testCommunication()
-  {
+  bool testCommunication() {
     requestVersion();
-    delay(200);
+
+    unsigned long start = millis();
+    while (millis() - start < 500) {
+      processUBX();
+      delay(10);
+    }
+
+    // Send CFG-PRT and wait for ACK
+    sendUBX(UBX_POLL_STATUS, sizeof(UBX_POLL_STATUS));
+    delay(100);
     processUBX();
+    return statusData.valid;  // Valid response => successful communication
+  }
+
+  bool validateConfiguration() {
+    if (!testCommunication())
+      return false;
+
+    requestHardwareStatus();
+    unsigned long start = millis();
+    while (!hwData.valid && millis() - start < 500) {
+      processUBX();
+      delay(10);
+    }
+    if (!hwData.valid || !isAntennaOK())
+      return false;
+
+    requestSatellites();
+    start = millis();
+    while (!satData.valid && millis() - start < 1000) {
+      processUBX();
+      delay(10);
+    }
+    if (!satData.valid || satData.numSvs == 0)
+      return false;
+
     return true;
   }
 
-  bool isAntennaOK()
-  {
-    if (!hwData.valid)
-    {
+  bool isAntennaOK() {
+    if (!hwData.valid) {
       requestHardwareStatus();
       delay(200);
       processUBX();
@@ -1236,10 +1207,8 @@ public:
     return hwData.valid && hwData.aStatus == 2;
   }
 
-  uint8_t getJammingLevel()
-  {
-    if (!hwData.valid)
-    {
+  uint8_t getJammingLevel() {
+    if (!hwData.valid) {
       requestHardwareStatus();
       delay(200);
       processUBX();
@@ -1247,8 +1216,7 @@ public:
     return hwData.valid ? hwData.jamInd : 0;
   }
 
-  uint8_t getSignalQuality()
-  {
+  uint8_t getSignalQuality() {
     if (!satData.valid)
       return 0;
     float avgCNO = getAverageCNO();
@@ -1258,47 +1226,20 @@ public:
     return min(100, cnoScore + satScore);
   }
 
-  bool validateConfiguration()
-  {
-    if (!testCommunication())
-      return false;
-
-    // Wait for hardware status
-    requestHardwareStatus();
-    delay(300);
-    processUBX();
-
-    if (!isAntennaOK())
-      return false;
-
-    requestSatellites();
-    delay(500);
-    processUBX();
-
-    if (!satData.valid || satData.numSvs == 0)
-      return false;
-
-    return true;
-  }
-
-  void setTimezone(float offsetHours, bool enableAutoDST = false)
-  {
+  void setTimezone(float offsetHours, bool enableAutoDST = false) {
     timezoneOffset = offsetHours;
     autoDST = enableAutoDST;
     timeCache.valid = false;
   }
 
-  void getLocalTime(int &year, int &month, int &day, int &dayIndex, int &hour, int &minute, int &second)
-  {
-    if (!hasFix())
-    {
+  void getLocalTime(int &year, int &month, int &day, int &dayIndex, int &hour, int &minute, int &second) {
+    if (!hasFix()) {
       year = month = day = dayIndex = hour = minute = second = 0;
       return;
     }
     if (!timeCache.valid)
       updateTimeCache();
-    if (timeCache.valid)
-    {
+    if (timeCache.valid) {
       year = timeCache.year;
       month = timeCache.month;
       day = timeCache.day;
@@ -1306,64 +1247,54 @@ public:
       hour = timeCache.hour;
       minute = timeCache.minute;
       second = timeCache.second;
-    }
-    else
-    {
+    } else {
       year = month = day = dayIndex = hour = minute = second = 0;
     }
   }
 
-  int getYear()
-  {
+  int getYear() {
     if (!timeCache.valid)
       updateTimeCache();
     return timeCache.valid ? timeCache.year : 0;
   }
 
-  uint8_t getMonth()
-  {
+  uint8_t getMonth() {
     if (!timeCache.valid)
       updateTimeCache();
     return timeCache.valid ? timeCache.month : 0;
   }
 
-  uint8_t getDay()
-  {
+  uint8_t getDay() {
     if (!timeCache.valid)
       updateTimeCache();
     return timeCache.valid ? timeCache.day : 0;
   }
 
-  uint8_t getHour()
-  {
+  uint8_t getHour() {
     if (!timeCache.valid)
       updateTimeCache();
     return timeCache.valid ? timeCache.hour : 0;
   }
 
-  uint8_t getMinute()
-  {
+  uint8_t getMinute() {
     if (!timeCache.valid)
       updateTimeCache();
     return timeCache.valid ? timeCache.minute : 0;
   }
 
-  uint8_t getSecond()
-  {
+  uint8_t getSecond() {
     if (!timeCache.valid)
       updateTimeCache();
     return timeCache.valid ? timeCache.second : 0;
   }
 
-  uint8_t getDayIndex()
-  {
+  uint8_t getDayIndex() {
     if (!timeCache.valid)
       updateTimeCache();
     return timeCache.valid ? timeCache.dayIndex : 0;
   }
 
-  double calculateDistance(double lat1, double lon1, double lat2, double lon2)
-  {
+  double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
     const double R = 6371000.0;
     double lat1Rad = lat1 * DEG_TO_RAD;
     double lat2Rad = lat2 * DEG_TO_RAD;
@@ -1374,8 +1305,7 @@ public:
     return R * c;
   }
 
-  void setGeofence(double centerLat, double centerLon, float radiusMeters)
-  {
+  void setGeofence(double centerLat, double centerLon, float radiusMeters) {
     geofence.centerLat = centerLat;
     geofence.centerLon = centerLon;
     geofence.radius = radiusMeters;
@@ -1383,18 +1313,15 @@ public:
     lastGeofenceState = checkGeofence();
   }
 
-  void disableGeofence()
-  {
+  void disableGeofence() {
     geofence.active = false;
   }
 
-  bool isInGeofence()
-  {
+  bool isInGeofence() {
     return checkGeofence();
   }
 
-  bool geofenceStateChanged()
-  {
+  bool geofenceStateChanged() {
     if (!geofence.active)
       return false;
     bool current = checkGeofence();
@@ -1403,8 +1330,7 @@ public:
     return changed;
   }
 
-  UTMCoordinate convertToUTM(double lat, double lon)
-  {
+  UTMCoordinate convertToUTM(double lat, double lon) {
     UTMCoordinate utm;
     utm.zone = (uint8_t)((lon + 180.0) / 6.0) + 1;
     const char bands[] = "CDEFGHJKLMNPQRSTUVWXX";
@@ -1440,8 +1366,7 @@ public:
     return utm;
   }
 
-  UTMCoordinate getCurrentUTM()
-  {
+  UTMCoordinate getCurrentUTM() {
     return convertToUTM(getLatitude(), getLongitude());
   }
 };

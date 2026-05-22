@@ -28,7 +28,7 @@ private:
   const String localIPURL = "http://4.3.2.1";
 
 public:
-  BetterCapportal()
+  BetterCaptivePortal()
     : server(80), apRunning(false), hasCustomHTML(false) {}
 
   // Start AP with optional password and runtime

@@ -1,0 +1,2230 @@
+<!DOCTYPE html>
+<html lang="hu">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BetterGPS Configurator</title>
+  <style>
+    :root {
+      --bg: #12151C;
+      --bg-panel: #191D26;
+      --bg-panel-raise: #1F2430;
+      --bus-line: #2A3040;
+      --border: #2A3040;
+      --border-soft: #232838;
+      --text: #D8DCE6;
+      --text-dim: #7E8699;
+      --text-faint: #4C5364;
+      --tx: #E8A33D;
+      --tx-dim: #6B5626;
+      --rx: #4FC3D9;
+      --rx-dim: #26535E;
+      --byte: #7FD99A;
+      --byte-dim: #3A6B4B;
+      --warn: #E85D4C;
+      --warn-bg: #2A1815;
+      --ok: #7FD99A;
+
+      --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Consolas, monospace;
+      --font-ui: 'Inter', -apple-system, 'Segoe UI', sans-serif;
+
+      --radius: 6px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-ui);
+      font-size: 16px;
+      line-height: 1.55;
+    }
+
+    ::selection {
+      background: var(--tx-dim);
+      color: var(--text);
+    }
+
+    /* ---------- scrollbar, subtle ---------- */
+    ::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--bg);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 5px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--text-faint);
+    }
+
+    a {
+      color: var(--rx);
+    }
+
+    code,
+    .mono {
+      font-family: var(--font-mono);
+    }
+
+    /* ================= LAYOUT SHELL ================= */
+    .shell {
+      display: grid;
+      grid-template-columns: 1fr;
+      max-width: 1440px;
+      margin: 0 auto;
+    }
+
+    header.top {
+      padding: 28px clamp(20px, 4vw, 48px) 20px;
+      border-bottom: 1px solid var(--border-soft);
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+
+    header.top .brand {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+    }
+
+    header.top h1 {
+      font-size: 19px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      margin: 0;
+      color: var(--text);
+    }
+
+    header.top h1 .accent {
+      color: var(--rx);
+    }
+
+    header.top .tagline {
+      font-size: 14px;
+      color: var(--text-dim);
+      max-width: 46ch;
+      line-height: 1.5;
+    }
+
+    header.top .badge {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      letter-spacing: .04em;
+      color: var(--text-faint);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 3px 7px;
+      white-space: nowrap;
+    }
+
+    main.workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(340px, 460px);
+      gap: 0;
+      align-items: start;
+    }
+
+    @media (max-width: 980px) {
+      main.workspace {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .col-config {
+      padding: 24px clamp(16px, 3vw, 40px) 80px;
+      min-width: 0;
+      border-right: 1px solid var(--border-soft);
+    }
+
+    @media (max-width: 980px) {
+      .col-config {
+        border-right: none;
+      }
+    }
+
+    .col-output {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      max-height: 100vh;
+      overflow-y: auto;
+      padding: 24px clamp(16px, 2.4vw, 32px) 40px;
+      background: var(--bg);
+    }
+
+    @media (max-width: 980px) {
+      .col-output {
+        position: static;
+        max-height: none;
+      }
+    }
+
+    /* ================= WIRING DIAGRAM ================= */
+    .wiring {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px clamp(14px, 2vw, 26px) 22px;
+      margin-bottom: 28px;
+    }
+
+    .wiring-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .wiring-head h2 {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--text-dim);
+      margin: 0;
+      font-weight: 600;
+    }
+
+    .wiring-head .module-select {
+      display: flex;
+      gap: 6px;
+    }
+
+    .modbtn {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      padding: 6px 11px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: border-color .15s, color .15s, background .15s;
+    }
+
+    .modbtn:hover {
+      border-color: var(--text-faint);
+      color: var(--text);
+    }
+
+    .modbtn.active {
+      border-color: var(--rx);
+      color: var(--rx);
+      background: rgba(79, 195, 217, 0.08);
+    }
+
+    .wiring-body {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px 28px;
+    }
+
+    @media (max-width:640px) {
+      .wiring-body {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .pin-row {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .pin-row label {
+      font-size: 13px;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .pin-row label .dir-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      display: inline-block;
+      flex: none;
+    }
+
+    .dir-dot.tx {
+      background: var(--tx);
+      box-shadow: 0 0 6px var(--tx);
+    }
+
+    .dir-dot.rx {
+      background: var(--rx);
+      box-shadow: 0 0 6px var(--rx);
+    }
+
+    .pin-input-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .pin-input-wrap input[type=text] {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 4px;
+      padding: 8px 10px;
+      width: 100%;
+      min-width: 0;
+    }
+
+    .pin-input-wrap input[type=text]:focus {
+      outline: none;
+      border-color: var(--rx);
+    }
+
+    #pinGpsTx:focus {
+      border-color: var(--tx);
+    }
+
+    .pin-input-wrap input[type=text].nc {
+      color: var(--text-faint);
+      font-style: italic;
+    }
+
+    .nc-toggle {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-faint);
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 8px 9px;
+      cursor: pointer;
+      white-space: nowrap;
+      flex: none;
+    }
+
+    .nc-toggle:hover {
+      color: var(--text-dim);
+      border-color: var(--text-faint);
+    }
+
+    .nc-toggle.active {
+      color: var(--warn);
+      border-color: var(--warn);
+      background: rgba(232, 93, 76, 0.08);
+    }
+
+    .pin-hint {
+      font-size: 12.5px;
+      color: var(--text-faint);
+      line-height: 1.55;
+    }
+
+    /* signal svg */
+    .signal-wrap {
+      margin-top: 16px;
+    }
+
+    .signal-wrap svg {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .sig-label {
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+
+    .wiring-warning {
+      display: none;
+      margin-top: 16px;
+      padding: 12px 14px;
+      border-radius: 4px;
+      background: var(--warn-bg);
+      border: 1px solid rgba(232, 93, 76, 0.35);
+      color: #F0A99C;
+      font-size: 13.5px;
+      line-height: 1.55;
+    }
+
+    .wiring-warning.show {
+      display: block;
+    }
+
+    .wiring-warning strong {
+      color: var(--warn);
+    }
+
+    /* ================= SECTIONS (feature panels) ================= */
+    .bus {
+      position: relative;
+      padding-left: 22px;
+    }
+
+    .bus::before {
+      content: "";
+      position: absolute;
+      left: 6px;
+      top: 6px;
+      bottom: 6px;
+      width: 1px;
+      background: var(--bus-line);
+    }
+
+    section.panel {
+      position: relative;
+      margin-bottom: 14px;
+      border: 1px solid var(--border);
+      background: var(--bg-panel);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    section.panel::before {
+      content: "";
+      position: absolute;
+      left: -22px;
+      top: 20px;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--border);
+      border: 2px solid var(--bg);
+      z-index: 1;
+    }
+
+    section.panel.enabled::before {
+      background: var(--rx);
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px 16px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .panel-head:hover {
+      background: var(--bg-panel-raise);
+    }
+
+    .panel-check {
+      flex: none;
+      width: 18px;
+      height: 18px;
+      margin-top: 2px;
+      border-radius: 4px;
+      border: 1.5px solid var(--border);
+      background: var(--bg);
+      position: relative;
+      transition: border-color .15s, background .15s;
+    }
+
+    section.panel.enabled .panel-check {
+      border-color: var(--rx);
+      background: var(--rx);
+    }
+
+    section.panel.enabled .panel-check::after {
+      content: "";
+      position: absolute;
+      left: 5px;
+      top: 1px;
+      width: 4px;
+      height: 9px;
+      border: solid var(--bg);
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg);
+    }
+
+    section.panel.disabled-by-module .panel-check {
+      border-color: var(--border-soft);
+      background: var(--bg-panel);
+      cursor: not-allowed;
+    }
+
+    .panel-titles {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .panel-title-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .panel-title {
+      font-size: 15.5px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    section.panel.disabled-by-module .panel-title {
+      color: var(--text-faint);
+    }
+
+    .panel-ubx {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      color: var(--byte);
+      background: rgba(127, 217, 154, 0.08);
+      border: 1px solid var(--byte-dim);
+      border-radius: 3px;
+      padding: 1px 6px;
+    }
+
+    section.panel.disabled-by-module .panel-ubx {
+      color: var(--text-faint);
+      background: transparent;
+      border-color: var(--border-soft);
+    }
+
+    .panel-module-tag {
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      letter-spacing: .03em;
+      color: var(--text-faint);
+      border: 1px solid var(--border-soft);
+      border-radius: 3px;
+      padding: 1px 5px;
+    }
+
+    .panel-desc {
+      font-size: 13.5px;
+      color: var(--text-dim);
+      margin-top: 4px;
+      line-height: 1.5;
+    }
+
+    .panel-chevron {
+      flex: none;
+      color: var(--text-dim);
+      margin-top: 2px;
+      transition: transform .22s cubic-bezier(.4, 0, .2, 1);
+      font-size: 15px;
+      line-height: 1;
+    }
+
+    section.panel.open .panel-chevron {
+      transform: rotate(90deg);
+      color: var(--rx);
+    }
+
+    .panel-body {
+      display: grid;
+      grid-template-rows: 0fr;
+      opacity: 0;
+      transition: grid-template-rows .22s cubic-bezier(.4, 0, .2, 1), opacity .18s ease;
+    }
+
+    .panel-body>.panel-body-inner {
+      overflow: hidden;
+      padding: 0 16px 0 46px;
+    }
+
+    section.panel.open .panel-body {
+      grid-template-rows: 1fr;
+      opacity: 1;
+    }
+
+    section.panel.open .panel-body>.panel-body-inner {
+      padding: 4px 16px 18px 46px;
+      border-top: 1px solid var(--border-soft);
+    }
+
+    .field-row {
+      display: grid;
+      grid-template-columns: minmax(120px, 180px) 1fr;
+      gap: 6px 16px;
+      align-items: center;
+      margin-top: 10px;
+    }
+
+    .field-row:first-child {
+      margin-top: 14px;
+    }
+
+    @media (max-width:560px) {
+      .field-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .field-row label {
+      font-size: 13px;
+      color: var(--text-dim);
+    }
+
+    .field-row input[type=text],
+    .field-row input[type=number],
+    .field-row select {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 4px;
+      padding: 8px 10px;
+      width: 100%;
+    }
+
+    .field-row input:focus,
+    .field-row select:focus {
+      outline: none;
+      border-color: var(--rx);
+    }
+
+    .field-row .unit {
+      font-size: 12px;
+      color: var(--text-faint);
+      margin-left: 6px;
+    }
+
+    .field-note {
+      font-size: 12.5px;
+      color: var(--text-faint);
+      grid-column: 1/-1;
+      margin-top: -2px;
+      line-height: 1.5;
+    }
+
+    .radio-group,
+    .check-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      grid-column: 1/-1;
+      padding-bottom: 10px;
+    }
+
+    .field-row.stack {
+      grid-template-columns: 1fr;
+    }
+
+    .field-row.stack label.group-label {
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-bottom: 2px;
+    }
+
+    .pill {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text-dim);
+      padding: 9px 16px;
+      border-radius: 20px;
+      cursor: pointer;
+      transition: border-color .15s, color .15s, background .15s, transform .1s;
+    }
+
+    .pill:hover {
+      border-color: var(--text-faint);
+      color: var(--text);
+    }
+
+    .pill:active {
+      transform: scale(0.97);
+    }
+
+    .pill.selected {
+      border-color: var(--rx);
+      color: var(--rx);
+      background: rgba(79, 195, 217, 0.08);
+    }
+
+    .pill.selected.tx-flavor {
+      border-color: var(--tx);
+      color: var(--tx);
+      background: rgba(232, 163, 61, 0.08);
+    }
+
+    .inline-warning {
+      grid-column: 1/-1;
+      font-size: 13px;
+      color: #F0A99C;
+      background: var(--warn-bg);
+      border: 1px solid rgba(232, 93, 76, 0.3);
+      border-radius: 4px;
+      padding: 9px 12px;
+      margin-top: 6px;
+      line-height: 1.5;
+      display: none;
+    }
+
+    .inline-warning.show {
+      display: block;
+    }
+
+    .section-heading {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--text-faint);
+      margin: 26px 0 10px;
+      padding-left: 22px;
+    }
+
+    .section-heading:first-of-type {
+      margin-top: 6px;
+    }
+
+    /* ================= OUTPUT / CODE PANEL ================= */
+    .output-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .output-head h2 {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--text-dim);
+      margin: 0;
+      font-weight: 600;
+    }
+
+    .file-tabs {
+      display: flex;
+      gap: 2px;
+      flex-wrap: wrap;
+      margin-bottom: 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .file-tab {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-faint);
+      padding: 9px 11px 10px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .file-tab:hover {
+      color: var(--text-dim);
+    }
+
+    .file-tab.active {
+      color: var(--byte);
+      border-bottom-color: var(--byte);
+    }
+
+    .code-box {
+      background: #0D0F15;
+      border: 1px solid var(--border);
+      border-top: none;
+      border-radius: 0 0 var(--radius) var(--radius);
+      max-height: 520px;
+      overflow: auto;
+      margin-bottom: 14px;
+    }
+
+    .code-box pre {
+      margin: 0;
+      padding: 16px;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      line-height: 1.6;
+      color: #C7DFCF;
+      white-space: pre;
+    }
+
+    .code-box .cm {
+      color: #5E6A70;
+    }
+
+    .code-box .kw {
+      color: #E8A33D;
+    }
+
+    .code-box .ty {
+      color: #4FC3D9;
+    }
+
+    .code-box .st {
+      color: #7FD99A;
+    }
+
+    .code-box .nm {
+      color: #D8DCE6;
+    }
+
+    .dl-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 22px;
+    }
+
+    .dl-btn {
+      font-family: var(--font-ui);
+      font-size: 12.5px;
+      font-weight: 600;
+      background: var(--bg-panel-raise);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 9px 14px;
+      border-radius: 5px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .dl-btn:hover {
+      border-color: var(--rx);
+      color: var(--rx);
+    }
+
+    .dl-btn.primary {
+      background: rgba(79, 195, 217, 0.1);
+      border-color: var(--rx);
+      color: var(--rx);
+    }
+
+    .dl-btn.primary:hover {
+      background: rgba(79, 195, 217, 0.18);
+    }
+
+    .dl-btn .copied {
+      color: var(--ok);
+    }
+
+    .summary-box {
+      border: 1px solid var(--border);
+      background: var(--bg-panel);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      margin-bottom: 18px;
+    }
+
+    .summary-box h3 {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      color: var(--text-faint);
+      margin: 0 0 10px;
+      font-weight: 600;
+    }
+
+    .summary-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .summary-list li {
+      font-size: 12px;
+      color: var(--text-dim);
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .summary-list li .v {
+      font-family: var(--font-mono);
+      color: var(--text);
+      text-align: right;
+    }
+
+    .summary-empty {
+      font-size: 12px;
+      color: var(--text-faint);
+      font-style: italic;
+    }
+
+    .setup-note {
+      font-size: 12.5px;
+      color: var(--text-faint);
+      line-height: 1.6;
+      padding-top: 8px;
+      border-top: 1px solid var(--border-soft);
+      margin-top: 6px;
+    }
+
+    .setup-note code {
+      color: var(--byte);
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="shell">
+
+    <header class="top">
+      <div>
+        <div class="brand">
+          <h1>Better<span class="accent">GPS</span> Configurator</h1>
+          <span class="badge">u-blox NEO-6/7/8M/M10 · UBX protocol</span>
+        </div>
+        <p class="tagline">Wire up your module, pick the features you want, and generate the matching Arduino files - no
+          coding required.</p>
+      </div>
+    </header>
+
+    <main class="workspace">
+
+      <div class="col-config">
+
+        <!-- ============ WIRING DIAGRAM ============ -->
+        <div class="wiring">
+          <div class="wiring-head">
+            <h2>Wiring &amp; module</h2>
+            <div class="module-select" id="moduleSelect">
+              <button type="button" class="modbtn" data-module="NEO6MV2">NEO-6M</button>
+              <button type="button" class="modbtn" data-module="NEO7MV2">NEO-7M</button>
+              <button type="button" class="modbtn active" data-module="NEO8MV2">NEO-8M</button>
+              <button type="button" class="modbtn" data-module="M10">M10</button>
+            </div>
+          </div>
+
+          <div class="wiring-body">
+            <div class="pin-row">
+              <label><span class="dir-dot tx"></span> GPS TX → ESP32 <span class="mono">RX</span> pin</label>
+              <div class="pin-input-wrap">
+                <input type="text" id="pinGpsTx" value="16" inputmode="numeric" autocomplete="off">
+                <button type="button" class="nc-toggle" id="ncToggleTx" data-target="pinGpsTx">NC</button>
+              </div>
+              <div class="pin-hint">This is where the GPS module's <b>TX</b> pin connects. It's the line the module uses
+                to <b>send</b> data back (position, status, etc.) to the ESP32.</div>
+            </div>
+
+            <div class="pin-row">
+              <label><span class="dir-dot rx"></span> GPS RX → ESP32 <span class="mono">TX</span> pin</label>
+              <div class="pin-input-wrap">
+                <input type="text" id="pinGpsRx" value="17" inputmode="numeric" autocomplete="off">
+                <button type="button" class="nc-toggle" id="ncToggleRx" data-target="pinGpsRx">NC</button>
+              </div>
+              <div class="pin-hint">This is where the GPS module's <b>RX</b> pin connects. This is the line the ESP32
+                uses to <b>send</b> commands (update rate, GNSS, save, etc.) to the module.</div>
+            </div>
+          </div>
+
+          <div class="signal-wrap">
+            <svg id="signalSvg" viewBox="0 0 760 92" xmlns="http://www.w3.org/2000/svg"></svg>
+          </div>
+
+          <div class="wiring-warning" id="wireWarning"></div>
+        </div>
+
+        <!-- feature sections injected by JS below -->
+        <div id="featureSections"></div>
+
+      </div><!-- /.col-config -->
+
+      <div class="col-output">
+        <div class="output-head">
+          <h2>Generated code</h2>
+        </div>
+
+        <div class="summary-box">
+          <h3>Selected features</h3>
+          <ul class="summary-list" id="summaryList">
+            <li class="summary-empty">No features selected yet.</li>
+          </ul>
+        </div>
+
+        <div class="file-tabs" id="fileTabs"></div>
+        <div class="code-box">
+          <pre id="codeOutput"></pre>
+        </div>
+
+        <div class="dl-row" id="downloadRow"></div>
+
+        <div class="setup-note">
+          Drop all five files (<code>.ino</code> + 4 <code>.h</code>) into one sketch folder, then open the
+          <code>.ino</code> in the Arduino IDE. <code>Better-GPS.h</code>, <code>-commands.h</code>, and
+          <code>-structs.h</code> don't change based on your selections above - only <code>-config.h</code> and the
+          <code>.ino</code> do.
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+    "use strict";
+
+    /* =====================================================================
+       STATIC FILE CONTENTS (don't depend on UI selections)
+       These are the literal contents of your fixed Better-GPS-commands.h /
+       Better-GPS.h / Better-GPS-structs.h files.
+       ===================================================================== */
+
+    const STATIC_COMMANDS_H = "#pragma once\n\n// ==================== UBX PROTOCOL STRUCTURE ====================\n/*\nUBX protocol structure:\n  Sync chars (2 bytes) | Class (1 byte) | ID (1 byte) | Length (2 bytes) | Payload (x bytes) | Checksum (2 bytes)\nExample:\n  0xB5 0x62 | 0x01 | 0x02 | 0x1C 0x00 | ... | 0xc0 0x7E\n\nSync chars: 0xB5 0x62 (constant value)\nClass > ID:\n  NAV --> 0x01 (Navigation):\n    NAV-POSLLH --> 0x02 (Longitude / Latitude / Height)\n    NAV-STATUS --> 0x03 (Receiver / fix status)\n    NAV-DOP    --> 0x04 (Dilution of Precision)\n    NAV-PVT    --> 0x07 (Position Velocity Time - u-blox 7+)\n    NAV-ODO    --> 0x09 (Odometer - u-blox 8+)\n    NAV-TIMEUTC --> 0x21 (UTC time / date)\n    NAV-VELNED --> 0x12 (Velocity in North / East / Down)\n    NAV-TIMEGPS --> 0x20 (GPS time solution)\n    NAV-SVINFO / NAV-SVSTATUS --> 0x30 (Satellite info) (u-blox 6 and older)\n    NAV-SAT --> 0x35 (Satellite info - u-blox 8+)\n    NAV-DGPS --> 0x36 (Differential GPS data)\n\n  RXM --> 0x02 (Receiver Manager):\n    RXM-RAW --> 0x10 (Raw measurement data)\n    RXM-RAWX --> 0x15 (Extended raw measurements => multi-GNSS - u-blox 8+)\n    RXM-SFRBX --> 0x13 (Satellite subframe data - ephemeris, almanac, clock info - u-blox 8+)\n\n  INF --> 0x04 (Informational messages):\n    INF-ERROR --> 0x00\n    INF-WARNING --> 0x01\n    INF-NOTICE --> 0x02\n    INF-DEBUG --> 0x04\n\n  ACK --> 0x05 (Acknowledge):\n    ACK-NAK --> 0x00 (negative acknowledgement)\n    ACK-ACK --> 0x01 (positive acknowledgement)\n\n  CFG --> 0x06 (Configuration):\n    CFG-MSG --> 0x01 (configure message output / enable / disable messages)\n    CFG-INF --> 0x02 (configure info messages)\n    CFG-PRT --> 0x00 (configure port - UART / USB / I2C - settings)\n    CFG-RATE --> 0x08 (configure measurement / navigation rate)\n    CFG-CFG --> 0x09 (Save / load / clear configuration)\n    CFG-ANT --> 0x13 (antenna settings)\n    CFG-NAV5 --> 0x24 (navigation engine settings - dynamic platform model)\n    CFG-NAVX5 --> 0x23 (navigation engine expert settings - smoothing etc.)\n    CFG-RXM --> 0x11 (power mode configuration)\n    CFG-GNSS --> 0x3E (enable / disable GNSS constellations - u-blox 8+)\n\n  UPD --> 0x09 (Firmware update / memory management / backup operations)\n  MON --> 0x0A (Monitoring / Status reporting):\n    MON-VER --> 0x04 (version information)\n    MON-HW --> 0x09 (hardware status)\n    MON-RXBUF --> 0x07 (receiver buffer usage)\n    MON-STATUS --> 0x08 (status flags)\n\n  TIM --> 0x0D (Timing / timepulse / time mark messsages):\n    TIM-TP --> 0x01 (Time pulse / marking)\n    TIM-MARK --> 0x03 (Time mark event)\n\n  MGA --> 0x13 (Assistance / Multi-GNSS - u-blox 8+):\n    MGA-ACK --> 0x60 (Multi GNSS assistance acknowledge)\n    MGA-DGNSS --> 0x40 (DGNSS assist message)\n\n  LOG --> 0x21 (Logging):\n    LOG-RETRIEVEPOS --> 0x02 (log retrieval operations)\n\n  SEC --> 0x27 (Security / authentication / unique ID features):\n    SEC-UNIQID --> 0x03 (Unique ID)\n\nLength: Payload size in bytes (LSB first, MSB second)\nPayload: Data to be sent\n*/\n\n// ==================== BAUDRATES ====================\nconst uint8_t UBX_BAUDRATES[8][28] = {\n  // 4800\n  { 0xB5, 0x62, 0x06, 0x00, 0x14, 0x00,\n    0x01, 0x00, 0x00, 0x00, 0xD0, 0x08, 0x00, 0x00,\n    0xC0, 0x12, 0x00, 0x00, 0x07, 0x00, 0x03, 0x00,\n    0x00, 0x00, 0x00, 0x00,\n    0xCF, 0xE4 },\n\n  // 9600\n  { 0xB5, 0x62, 0x06, 0x00, 0x14, 0x00,\n    0x01, 0x00, 0x00, 0x00, 0xD0, 0x08, 0x00, 0x00,\n    0x80, 0x25, 0x00, 0x00, 0x07, 0x00, 0x03, 0x00,\n    0x00, 0x00, 0x00, 0x00,\n    0xA2, 0xB5 },\n\n  // 19200\n  { 0xB5, 0x62, 0x06, 0x00, 0x14, 0x00,\n    0x01, 0x00, 0x00, 0x00, 0xD0, 0x08, 0x00, 0x00,\n    0x00, 0x4B, 0x00, 0x00, 0x07, 0x00, 0x03, 0x00,\n    0x00, 0x00, 0x00, 0x00,\n    0x48, 0x57 },\n\n  // 38400\n  { 0xB5, 0x62, 0x06, 0x00, 0x14, 0x00,\n    0x01, 0x00, 0x00, 0x00, 0xD0, 0x08, 0x00, 0x00,\n    0x00, 0x96, 0x00, 0x00, 0x07, 0x00, 0x03, 0x00,\n    0x00, 0x00, 0x00, 0x00,\n    0x93, 0x90 },\n\n  // 57600\n  { 0xB5, 0x62, 0x06, 0x00, 0x14, 0x00,\n    0x01, 0x00, 0x00, 0x00, 0xD0, 0x08, 0x00, 0x00,\n    0x00, 0xE1, 0x00, 0x00, 0x07, 0x00, 0x03, 0x00,\n    0x00, 0x00, 0x00, 0x00,\n    0xDE, 0xC9 },\n\n  // 115200\n  { 0xB5, 0x62, 0x06, 0x00, 0x14, 0x00,\n    0x01, 0x00, 0x00, 0x00, 0xD0, 0x08, 0x00, 0x00,\n    0x00, 0xC2, 0x01, 0x00, 0x07, 0x00, 0x03, 0x00,\n    0x00, 0x00, 0x00, 0x00,\n    0xC0, 0x7E },\n\n  // 230400\n  { 0xB5, 0x62, 0x06, 0x00, 0x14, 0x00,\n    0x01, 0x00, 0x00, 0x00, 0xD0, 0x08, 0x00, 0x00,\n    0x00, 0x84, 0x03, 0x00, 0x07, 0x00, 0x03, 0x00,\n    0x00, 0x00, 0x00, 0x00,\n    0x84, 0xE8 },\n\n  // 460800\n  { 0xB5, 0x62, 0x06, 0x00, 0x14, 0x00,\n    0x01, 0x00, 0x00, 0x00, 0xD0, 0x08, 0x00, 0x00,\n    0x00, 0x08, 0x07, 0x00, 0x07, 0x00, 0x03, 0x00,\n    0x00, 0x00, 0x00, 0x00,\n    0x0C, 0xBC }\n};\n\n// ==================== CFG-RATE: Set update rate ====================\n\n// 1Hz (default 1000ms update rate)\n// Response: ACK-ACK / ACK-NAK\nconst uint8_t UBX_RATE_1HZ[14] = {\n  0xB5, 0x62, 0x06, 0x08, 0x06, 0x00,\n  0xE8, 0x03, 0x01, 0x00, 0x01, 0x00,\n  0x01, 0x39\n};\n\n// 5Hz (200ms update rate)\n// Response: ACK-ACK / ACK-NAK\nconst uint8_t UBX_RATE_5HZ[14] = {\n  0xB5, 0x62, 0x06, 0x08, 0x06, 0x00,\n  0xC8, 0x00, 0x01, 0x00, 0x01, 0x00,\n  0xDE, 0x6A\n};\n\n// 10Hz (100ms update rate)\n// Response: ACK-ACK / ACK-NAK\nconst uint8_t UBX_RATE_10HZ[14] = {\n  0xB5, 0x62, 0x06, 0x08, 0x06, 0x00,\n  0x64, 0x00, 0x01, 0x00, 0x01, 0x00,\n  0x7A, 0x12\n};\n\n// NAV-POSLLH: Request position\n/*\nResponse:\n  iTOW --> Time of week in ms\n  lon --> longitude (1e-7 deg)\n  lat --> latitude (1e-7 deg)\n  height --> height above ellipsoid in mm\n  hMSL --> height above mean sea level in mm\n  hAcc --> horizontal accuracy estimate in mm\n  vAcc --> vertical accuracy estimate in mm\n*/\nconst uint8_t UBX_POLL_POSLLH[8] = {\n  0xB5, 0x62, 0x01, 0x02, 0x00, 0x00, 0x03, 0x0A\n};\n\n// NAV-STATUS: Request status\n/*\nResponse:\n  iTOW --> Time of week in ms\n  gpsFix --> 0 = no fix; 1 = dead reckoning only; 2 = 2D fix; 3 = 3D fix; 4 = GPS + dead reckoning\n  flags --> fix status flags\n  fixStat --> additional fix info\n  flags2 --> more flags\n  ttff --> time to first fix in ms\n  msss --> ms since startup\n*/\nconst uint8_t UBX_POLL_STATUS[8] = {\n  0xB5, 0x62, 0x01, 0x03, 0x00, 0x00, 0x04, 0x0D\n};\n\n// NAV-SAT: Request satellite info (u-blox 8+, use NAV-SVINFO 0x30 on older receivers)\n/*\nResponse:\n  iTOW --> Time of week in ms\n  version --> message version\n  numSvs --> number of satellites included in this message\n  Repeating block:\n    gnssId --> satellite system:\n      0 = GPS\n      1 = SBAS\n      2 = Galileo\n      3 = BeiDou\n      5 = QZSS\n      6 = GLONASS\n    svId --> satellite PRN number\n    cno --> signal strength in dB-Hz\n    elev --> elevation in degrees\n    azim --> azimuth in degrees\n    prRes --> pseudorange residual in 0.1m\n    flags --> satellite flags (used, health, orbit source, etc.)\n*/\nconst uint8_t UBX_POLL_SAT[8] = {\n  0xB5, 0x62, 0x01, 0x35, 0x00, 0x00, 0x36, 0xA3\n};\n\n// MON-VER: Request version info\n/*\nResponse:\n  swVersion --> null terminated string of software version\n  hwVersion --> null terminated string of hardware version\n  extension --> additional extension strings (PROTVER, FWVER, GNSS supported, etc.)\n*/\nconst uint8_t UBX_POLL_VERSION[8] = {\n  0xB5, 0x62, 0x0A, 0x04, 0x00, 0x00, 0x0E, 0x34\n};\n\n// ==================== CFG-RXM: Power modes ====================\n// Response: ACK-ACK / ACK-NAK\nconst uint8_t UBX_POWER_CONTINUOUS[10] = {\n  0xB5, 0x62, 0x06, 0x11, 0x02, 0x00, 0x00, 0x00, 0x19, 0x81\n};\n\n// Response: ACK-ACK / ACK-NAK\nconst uint8_t UBX_POWER_SAVE[10] = {\n  0xB5, 0x62, 0x06, 0x11, 0x02, 0x00, 0x01, 0x00, 0x1A, 0x83\n};\n\n// ==================== CFG-CFG: Save / load / clear configuration ====================\n\n// Saves config to flash\n// Response: ACK-ACK / ACK-NAK\nconst uint8_t UBX_SAVE_FLASH[21] = {\n  0xB5, 0x62, 0x06, 0x09, 0x0D, 0x00,\n  0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00,\n  0x00, 0x00, 0x00, 0x00, 0x02,\n  0x1C, 0xAA\n};\n\n// Saves config to battery backed RAM\n// Response: ACK-ACK / ACK-NAK\nconst uint8_t UBX_SAVE_BBR[21] = {\n  0xB5, 0x62, 0x06, 0x09, 0x0D, 0x00,\n  0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00,\n  0x00, 0x00, 0x00, 0x00, 0x01,\n  0x1B, 0xA9\n};\n\n// Saves config to Flash and BBR\n// Response: ACK-ACK / ACK-NAK\nconst uint8_t UBX_SAVE_ALL[21] = {\n  0xB5, 0x62, 0x06, 0x09, 0x0D, 0x00,\n  0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00,\n  0x00, 0x00, 0x00, 0x00, 0x17,\n  0x31, 0xBF\n};\n\n// ==================== CFG-MSG: Disable NMEA messages ====================\n\n// Response: ACK-ACK / ACK-NAK\nconst uint8_t UBX_DISABLE_GGA[16] = {\n  0xB5, 0x62, 0x06, 0x01, 0x08, 0x00,\n  0xF0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,\n  0xFF, 0x23\n};\n\n// Response: ACK-ACK / ACK-NAK\nconst uint8_t UBX_DISABLE_GLL[16] = {\n  0xB5, 0x62, 0x06, 0x01, 0x08, 0x00,\n  0xF0, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,\n  0x00, 0x2A\n};\n\n// Response: ACK-ACK / ACK-NAK\nconst uint8_t UBX_DISABLE_GSA[16] = {\n  0xB5, 0x62, 0x06, 0x01, 0x08, 0x00,\n  0xF0, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,\n  0x01, 0x31\n};\n\n// Response: ACK-ACK / ACK-NAK\nconst uint8_t UBX_DISABLE_GSV[16] = {\n  0xB5, 0x62, 0x06, 0x01, 0x08, 0x00,\n  0xF0, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,\n  0x02, 0x38\n};\n\n// Response: ACK-ACK / ACK-NAK\nconst uint8_t UBX_DISABLE_RMC[16] = {\n  0xB5, 0x62, 0x06, 0x01, 0x08, 0x00,\n  0xF0, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,\n  0x03, 0x3F\n};\n\n// Response: ACK-ACK / ACK-NAK\nconst uint8_t UBX_DISABLE_VTG[16] = {\n  0xB5, 0x62, 0x06, 0x01, 0x08, 0x00,\n  0xF0, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,\n  0x04, 0x46\n};\n\n// ==================== CFG-GNSS: GPS + Galileo only (u-blox 8+) ====================\n\n// Response: ACK-ACK / ACK-NAK\nconst uint8_t UBX_GNSS_GPS_GALILEO[52] = {\n  0xB5, 0x62, 0x06, 0x3E, 0x2C, 0x00,\n  0x00, 0x00, 0x20, 0x07, 0x00, 0x08, 0x10, 0x00,\n  0x01, 0x01, 0x01, 0x01, 0x00, 0x01, 0x01, 0x00,\n  0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,\n  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,\n  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,\n  0x00, 0x00, 0x00, 0x00,\n  0xB8, 0x79\n};\n\n// ==================== CFG-NAVX5: Disable / Enable GPS smoothing ====================\n\n// Disable smoothing\n// Response: ACK-ACK / ACK-NAK\nconst uint8_t UBX_NO_SMOOTHING[44] = {\n  0xB5, 0x62, 0x06, 0x24, 0x24, 0x00,\n  0xFF, 0xFF, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00,\n  0x10, 0x27, 0x00, 0x00, 0x05, 0x00, 0xFA, 0x00,\n  0xFA, 0x00, 0x64, 0x00, 0x2C, 0x01, 0x00, 0x00,\n  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,\n  0x00, 0x00, 0x00, 0x00,\n  0x10, 0x10\n};\n\n// Enable smoothing\n// Response: ACK-ACK / ACK-NAK\nconst uint8_t UBX_ENABLE_SMOOTHING[44] = {\n  0xB5, 0x62, 0x06, 0x24, 0x24, 0x00,\n  0xFF, 0xFF, 0x08, 0x03, 0x00, 0x00, 0x00, 0x00,\n  0x10, 0x27, 0x00, 0x00, 0x05, 0x00, 0xFA, 0x00,\n  0xFA, 0x00, 0x64, 0x00, 0x2C, 0x01, 0x00, 0x00,\n  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,\n  0x00, 0x00, 0x00, 0x00,\n  0x18, 0x20\n};\n\n// ==================== NAV-DOP: Request Dilution of Precision ====================\n/*\nResponse:\n  iTOW --> Time of week in ms\n  gDOP --> Geometric DOP (0.01 scale)\n  pDOP --> Position DOP (0.01 scale)\n  tDOP --> Time DOP (0.01 scale)\n  vDOP --> Vertical DOP (0.01 scale)\n  hDOP --> Horizontal DOP (0.01 scale)\n  nDOP --> Northing DOP (0.01 scale)\n  eDOP --> Easting DOP (0.01 scale)\n*/\nconst uint8_t UBX_POLL_DOP[8] = {\n  0xB5, 0x62, 0x01, 0x04, 0x00, 0x00, 0x05, 0x10\n};\n\n// ==================== NAV-PVT: Request Position Velocity Time (u-blox 7+) ====================\n/*\nResponse:\n  iTOW --> Time of week in ms\n  year, month, day, hour, min, sec --> UTC time\n  valid --> validity flags (date, time, fully resolved)\n  tAcc --> time accuracy estimate in ns\n  nano --> fraction of second in ns\n  fixType --> 0=no fix; 1=dead reckoning; 2=2D; 3=3D; 4=GNSS+DR; 5=time only\n  flags --> fix status flags\n  numSV --> number of satellites used\n  lon --> longitude (1e-7 deg)\n  lat --> latitude (1e-7 deg)\n  height --> height above ellipsoid in mm\n  hMSL --> height above mean sea level in mm\n  hAcc --> horizontal accuracy in mm\n  vAcc --> vertical accuracy in mm\n  velN, velE, velD --> NED velocity in mm/s\n  gSpeed --> ground speed in mm/s\n  headMot --> heading of motion in 1e-5 deg\n  sAcc --> speed accuracy in mm/s\n  headAcc --> heading accuracy in 1e-5 deg\n  pDOP --> position DOP (0.01 scale)\n  headVeh --> heading of vehicle in 1e-5 deg\n*/\nconst uint8_t UBX_POLL_PVT[8] = {\n  0xB5, 0x62, 0x01, 0x07, 0x00, 0x00, 0x08, 0x19\n};\n\n// ==================== NAV-ODO: Request Odometer Data (u-blox 8+) ====================\n/*\nResponse:\n  version --> message version\n  iTOW --> Time of week in ms\n  distance --> ground distance since last reset in m\n  totalDistance --> total cumulative ground distance in m\n  distanceStd --> ground distance accuracy (1 sigma) in m\n*/\nconst uint8_t UBX_POLL_ODO[8] = {\n  0xB5, 0x62, 0x01, 0x09, 0x00, 0x00, 0x0A, 0x1F\n};\n\n// ==================== NAV-VELNED: Request Velocity North-East-Down ====================\n/*\nResponse:\n  iTOW --> Time of week in ms\n  velN --> north velocity in cm/s\n  velE --> east velocity in cm/s\n  velD --> down velocity in cm/s\n  speed --> 3D speed in cm/s\n  gSpeed --> ground speed (2D) in cm/s\n  heading --> heading of motion in 1e-5 deg\n  sAcc --> speed accuracy estimate in cm/s\n  cAcc --> course / heading accuracy estimate in 1e-5 deg\n*/\nconst uint8_t UBX_POLL_VELNED[8] = {\n  0xB5, 0x62, 0x01, 0x12, 0x00, 0x00, 0x13, 0x3A\n};\n\n// ==================== NAV-TIMEUTC: Request UTC Time ====================\n/*\nResponse:\n  iTOW --> Time of week in ms\n  tAcc --> time accuracy estimate in ns\n  nano --> fraction of second in ns (range -1e9 to 1e9)\n  year --> UTC year (1-65535)\n  month --> UTC month (1-12)\n  day --> UTC day (1-31)\n  hour --> UTC hour (0-23)\n  min --> UTC minute (0-59)\n  sec --> UTC second (0-60)\n  valid --> validity flags (validTOW, validWKN, validUTC, utcStandard)\n*/\nconst uint8_t UBX_POLL_TIMEUTC[8] = {\n  0xB5, 0x62, 0x01, 0x21, 0x00, 0x00, 0x22, 0x67\n};\n\n// ==================== RXM-RAWX: Request Raw Measurements (u-blox 8+) ====================\n/*\nResponse:\n  rcvTow --> receiver time of week in seconds\n  week --> GPS week number\n  leapS --> GPS leap seconds (GPS-UTC)\n  numMeas --> number of measurements in this block\n  recStat --> receiver tracking status flags\n  Repeating block (one per measurement):\n    prMes --> pseudorange measurement in m\n    cpMes --> carrier phase measurement in cycles\n    doMes --> Doppler measurement in Hz\n    gnssId --> GNSS identifier (0=GPS; 2=Galileo; 3=BeiDou; 6=GLONASS)\n    svId --> satellite identifier\n    sigId --> signal identifier\n    freqId --> GLONASS frequency slot (255 if not GLONASS)\n    locktime --> carrier phase locktime counter in ms\n    cno --> carrier-to-noise density in dB-Hz\n    prStdev --> pseudorange measurement standard deviation\n    cpStdev --> carrier phase measurement standard deviation\n    doStdev --> Doppler measurement standard deviation\n    trkStat --> tracking status flags (prValid, cpValid, halfCyc, subHalfCyc)\n*/\nconst uint8_t UBX_POLL_RAWX[8] = {\n  0xB5, 0x62, 0x02, 0x15, 0x00, 0x00, 0x17, 0x47\n};\n\n// ==================== RXM-SFRBX: Request Subframe Data (u-blox 8+) ====================\n/*\nResponse:\n  gnssId --> GNSS identifier\n  svId --> satellite identifier\n  freqId --> GLONASS frequency slot\n  numWords --> number of 32-bit data words\n  chn --> tracking channel\n  version --> message version\n  dwrd[] --> navigation data words (raw subframe data)\n*/\nconst uint8_t UBX_POLL_SFRBX[8] = {\n  0xB5, 0x62, 0x02, 0x13, 0x00, 0x00, 0x15, 0x41\n};\n\n// ==================== MON-HW: Request Hardware Status ====================\n/*\nResponse:\n  pinSel --> mask of pins set as peripheral / PIO\n  pinBank --> mask of pins set as bank A / B\n  pinDir --> mask of pins set as input / output\n  pinVal --> mask of pins value low / high\n  noisePerMS --> noise level as measured by the GPS core\n  agcCnt --> AGC monitor (counts SIGHI xor SIGLO, range 0 to 8191)\n  aStatus --> antenna status (0=INIT; 1=DONTKNOW; 2=OK; 3=SHORT; 4=OPEN)\n  aPower --> antenna power status (0=OFF; 1=ON; 2=DONTKNOW)\n  flags --> flags (rtcCalib, safeBoot, jammingState, xtalAbsent)\n  usedMask --> mask of pins that are used by the virtual pin manager\n  VP[] --> array of pin mappings for each virtual pin\n  jamInd --> CW jamming indicator (0=no CW jamming; 255=strong CW jamming)\n  pinIrq --> mask of pins value using the PIO IRQ\n  pullH --> mask of pins value using the PIO pull high resistor\n  pullL --> mask of pins value using the PIO pull low resistor\n*/\nconst uint8_t UBX_POLL_HW[8] = {\n  0xB5, 0x62, 0x0A, 0x09, 0x00, 0x00, 0x13, 0x43\n};\n\n// ==================== CFG-NAV5: Dynamic Platform Models ====================\n\n// Portable mode - default, no movement restrictions\n// Response: ACK-ACK / ACK-NAK\nconst uint8_t UBX_NAV5_PORTABLE[44] = {\n  0xB5, 0x62, 0x06, 0x24, 0x24, 0x00,\n  0xFF, 0xFF, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00,\n  0x10, 0x27, 0x00, 0x00, 0x05, 0x00, 0xFA, 0x00,\n  0xFA, 0x00, 0x64, 0x00, 0x2C, 0x01, 0x00, 0x00,\n  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,\n  0x00, 0x00, 0x00, 0x00,\n  0x10, 0x10\n};\n\n// Stationary mode - for fixed position applications\n// Response: ACK-ACK / ACK-NAK\nconst uint8_t UBX_NAV5_STATIONARY[44] = {\n  0xB5, 0x62, 0x06, 0x24, 0x24, 0x00,\n  0xFF, 0xFF, 0x02, 0x03, 0x00, 0x00, 0x00, 0x00,\n  0x10, 0x27, 0x00, 0x00, 0x05, 0x00, 0xFA, 0x00,\n  0xFA, 0x00, 0x64, 0x00, 0x2C, 0x01, 0x00, 0x00,\n  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,\n  0x00, 0x00, 0x00, 0x00,\n  0x12, 0x54\n};\n\n// Pedestrian mode - optimized for walking speeds\n// Response: ACK-ACK / ACK-NAK\nconst uint8_t UBX_NAV5_PEDESTRIAN[44] = {\n  0xB5, 0x62, 0x06, 0x24, 0x24, 0x00,\n  0xFF, 0xFF, 0x03, 0x03, 0x00, 0x00, 0x00, 0x00,\n  0x10, 0x27, 0x00, 0x00, 0x05, 0x00, 0xFA, 0x00,\n  0xFA, 0x00, 0x64, 0x00, 0x2C, 0x01, 0x00, 0x00,\n  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,\n  0x00, 0x00, 0x00, 0x00,\n  0x13, 0x76\n};\n\n// Automotive mode - for vehicle applications\n// Response: ACK-ACK / ACK-NAK\nconst uint8_t UBX_NAV5_AUTOMOTIVE[44] = {\n  0xB5, 0x62, 0x06, 0x24, 0x24, 0x00,\n  0xFF, 0xFF, 0x04, 0x03, 0x00, 0x00, 0x00, 0x00,\n  0x10, 0x27, 0x00, 0x00, 0x05, 0x00, 0xFA, 0x00,\n  0xFA, 0x00, 0x64, 0x00, 0x2C, 0x01, 0x00, 0x00,\n  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,\n  0x00, 0x00, 0x00, 0x00,\n  0x14, 0x98\n};\n\n// ==================== CFG-GNSS: Additional GNSS Configurations (u-blox 8+) ====================\n\n// All constellations enabled (GPS + Galileo + GLONASS + BeiDou)\n// Response: ACK-ACK / ACK-NAK\nconst uint8_t UBX_GNSS_ALL[60] = {\n  0xB5, 0x62, 0x06, 0x3E, 0x34, 0x00,\n  0x00, 0x00, 0x20, 0x07,\n  // GPS (enabled)\n  0x00, 0x08, 0x10, 0x00, 0x01, 0x00, 0x01, 0x01,\n  // SBAS\n  0x01, 0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x01,\n  // Galileo (enabled)\n  0x02, 0x04, 0x08, 0x00, 0x01, 0x00, 0x01, 0x01,\n  // BeiDou (enabled)\n  0x03, 0x08, 0x10, 0x00, 0x01, 0x00, 0x01, 0x01,\n  // QZSS (disabled)\n  0x05, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x01,\n  // GLONASS (enabled)\n  0x06, 0x08, 0x0E, 0x00, 0x01, 0x00, 0x01, 0x01,\n  0x19, 0xEE\n};\n\n// GPS only configuration\n// Response: ACK-ACK / ACK-NAK\nconst uint8_t UBX_GNSS_GPS_ONLY[60] = {\n  0xB5, 0x62, 0x06, 0x3E, 0x34, 0x00,\n  0x00, 0x00, 0x20, 0x07,\n  // GPS (enabled)\n  0x00, 0x08, 0x10, 0x00, 0x01, 0x00, 0x01, 0x01,\n  // SBAS (disabled)\n  0x01, 0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x01,\n  // Galileo (disabled)\n  0x02, 0x04, 0x08, 0x00, 0x00, 0x00, 0x01, 0x01,\n  // BeiDou (disabled)\n  0x03, 0x08, 0x10, 0x00, 0x00, 0x00, 0x01, 0x01,\n  // QZSS (disabled)\n  0x05, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x01,\n  // GLONASS (disabled)\n  0x06, 0x08, 0x0E, 0x00, 0x00, 0x00, 0x01, 0x01,\n  0x16, 0xBA\n};\n\n// ==================== CFG-RST: Reset Commands ====================\n\n// Hot start - preserve all data (almanac, ephemeris, position, time)\n// Response: No ACK (receiver restarts immediately)\nconst uint8_t UBX_RESET_HOT[12] = {\n  0xB5, 0x62, 0x06, 0x04, 0x04, 0x00,\n  0x00, 0x00, 0x01, 0x00,\n  0x0F, 0x66\n};\n\n// Warm start - clear ephemeris, keep almanac and position\n// Response: No ACK (receiver restarts immediately)\nconst uint8_t UBX_RESET_WARM[12] = {\n  0xB5, 0x62, 0x06, 0x04, 0x04, 0x00,\n  0x01, 0x00, 0x01, 0x00,\n  0x10, 0x6A\n};\n\n// Cold start - clear all data (ephemeris, almanac, position, time)\n// Response: No ACK (receiver restarts immediately)\nconst uint8_t UBX_RESET_COLD[12] = {\n  0xB5, 0x62, 0x06, 0x04, 0x04, 0x00,\n  0xFF, 0xFF, 0x01, 0x00,\n  0x0D, 0x5F\n};";
+
+    const STATIC_MAIN_H = "#pragma once\n\n#include <HardwareSerial.h>\n#include <queue>\n#include \"Better-GPS-commands.h\"\n#include \"Better-GPS-structs.h\"\n#include \"Better-GPS-config.h\"\n\nclass BetterGPS {\nprivate:\n  HardwareSerial gpsSerial;\n  TimeCache timeCache;\n  uint32_t _updateIntervalMs = 1000;\n  unsigned long _lastAutoUpdate = 0;\n\n  // UBX response buffers\n  NAV_POSLLH_Response posllhData;\n  NAV_STATUS_Response statusData;\n  NAV_DOP_Response dopData;\n  NAV_PVT_Response pvtData;\n  NAV_ODO_Response odoData;\n  NAV_VELNED_Response velnedData;\n  NAV_TIMEUTC_Response timeutcData;\n  NAV_SAT_Response satData;\n  RXM_RAWX_Response rawxData;\n  RXM_SFRBX_Response sfrbxData;\n  MON_HW_Response hwData;\n\n  // UBX receive buffer\n  uint8_t ubxBuffer[512];\n  uint16_t ubxBufferIndex;\n  bool ubxReceiving;\n\n  // Command queue for reliable communication\n  std::queue<UBXCommand> commandQueue;\n  bool processingCommand;\n\n  // Timezone configuration\n  float timezoneOffset;\n  bool autoDST;\n\n  // Geofence\n  Geofence geofence;\n  bool lastGeofenceState;\n\n  // Current position cache (updated from UBX messages)\n  struct PositionCache {\n    double latitude;\n    double longitude;\n    double altitude;\n    double speedKmph;\n    double speedMps;\n    double course;\n    uint8_t satellites;\n    double hdop;\n    bool valid;\n    unsigned long lastUpdate;\n  } posCache;\n\n  // ==================== UBX PARSING ====================\n\n  void calculateChecksum(const uint8_t *data, uint16_t len, uint8_t &ckA, uint8_t &ckB) {\n    ckA = 0;\n    ckB = 0;\n    for (uint16_t i = 0; i < len; i++) {\n      ckA += data[i];\n      ckB += ckA;\n    }\n  }\n\n  void sendUBX(const uint8_t *cmd, uint16_t len) {\n    for (uint16_t i = 0; i < len; i++) {\n      gpsSerial.write(cmd[i]);\n    }\n    gpsSerial.flush();\n  }\n\n  void updatePositionCache() {\n    // Update from NAV-POSLLH if available\n    if (posllhData.valid) {\n      posCache.latitude = posllhData.lat / 1e7;\n      posCache.longitude = posllhData.lon / 1e7;\n      posCache.altitude = posllhData.hMSL / 1000.0;\n      posCache.valid = true;\n      posCache.lastUpdate = millis();\n    }\n\n    // Update from NAV-PVT if available (more comprehensive)\n    if (pvtData.validData && (pvtData.fixType >= 2)) {\n      posCache.latitude = pvtData.lat / 1e7;\n      posCache.longitude = pvtData.lon / 1e7;\n      posCache.altitude = pvtData.hMSL / 1000.0;\n      posCache.speedMps = pvtData.gSpeed / 1000.0;\n      posCache.speedKmph = posCache.speedMps * 3.6;\n      posCache.course = pvtData.headMot / 1e5;\n      posCache.satellites = pvtData.numSV;\n      posCache.hdop = pvtData.pDOP / 100.0;\n      posCache.valid = true;\n      posCache.lastUpdate = millis();\n    }\n\n    // Update from NAV-STATUS\n    if (statusData.valid) {\n      // Fix type validation\n      if (statusData.gpsFix >= 2) {  // 2D or 3D fix\n        if (!posCache.valid) {\n          // Request position data if we have a fix but no position yet\n          requestPosition();\n        }\n      } else {\n        posCache.valid = false;\n      }\n    }\n  }\n\n  void parseUBXResponse(uint8_t msgClass, uint8_t msgId, uint8_t *payload, uint16_t payloadLen) {\n    if (msgClass == 0x05) {\n      // ACK-ACK vagy ACK-NAK\n      if (!commandQueue.empty() && processingCommand) {\n        commandQueue.pop();\n        processingCommand = false;\n      }\n      return;\n    }\n    if (msgClass == 0x01 && msgId == 0x02 && payloadLen >= 28) {\n      // NAV-POSLLH\n      posllhData.iTOW = *((uint32_t *)(payload + 0));\n      posllhData.lon = *((int32_t *)(payload + 4));\n      posllhData.lat = *((int32_t *)(payload + 8));\n      posllhData.height = *((int32_t *)(payload + 12));\n      posllhData.hMSL = *((int32_t *)(payload + 16));\n      posllhData.hAcc = *((uint32_t *)(payload + 20));\n      posllhData.vAcc = *((uint32_t *)(payload + 24));\n      posllhData.valid = true;\n      updatePositionCache();\n    } else if (msgClass == 0x01 && msgId == 0x03 && payloadLen >= 16) {\n      // NAV-STATUS\n      statusData.iTOW = *((uint32_t *)(payload + 0));\n      statusData.gpsFix = payload[4];\n      statusData.flags = payload[5];\n      statusData.fixStat = payload[6];\n      statusData.flags2 = payload[7];\n      statusData.ttff = *((uint32_t *)(payload + 8));\n      statusData.msss = *((uint32_t *)(payload + 12));\n      statusData.valid = true;\n      updatePositionCache();\n    } else if (msgClass == 0x01 && msgId == 0x04 && payloadLen >= 18) {\n      // NAV-DOP\n      dopData.iTOW = *((uint32_t *)(payload + 0));\n      dopData.gDOP = *((uint16_t *)(payload + 4));\n      dopData.pDOP = *((uint16_t *)(payload + 6));\n      dopData.tDOP = *((uint16_t *)(payload + 8));\n      dopData.vDOP = *((uint16_t *)(payload + 10));\n      dopData.hDOP = *((uint16_t *)(payload + 12));\n      dopData.nDOP = *((uint16_t *)(payload + 14));\n      dopData.eDOP = *((uint16_t *)(payload + 16));\n      dopData.valid = true;\n    } else if (msgClass == 0x01 && msgId == 0x07 && payloadLen >= 92) {\n      // NAV-PVT\n      pvtData.iTOW = *((uint32_t *)(payload + 0));\n      pvtData.year = *((uint16_t *)(payload + 4));\n      pvtData.month = payload[6];\n      pvtData.day = payload[7];\n      pvtData.hour = payload[8];\n      pvtData.minute = payload[9];\n      pvtData.second = payload[10];\n      pvtData.valid = payload[11];\n      pvtData.tAcc = *((uint32_t *)(payload + 12));\n      pvtData.nano = *((int32_t *)(payload + 16));\n      pvtData.fixType = payload[20];\n      pvtData.flags = payload[21];\n      pvtData.flags2 = payload[22];\n      pvtData.numSV = payload[23];\n      pvtData.lon = *((int32_t *)(payload + 24));\n      pvtData.lat = *((int32_t *)(payload + 28));\n      pvtData.height = *((int32_t *)(payload + 32));\n      pvtData.hMSL = *((int32_t *)(payload + 36));\n      pvtData.hAcc = *((uint32_t *)(payload + 40));\n      pvtData.vAcc = *((uint32_t *)(payload + 44));\n      pvtData.velN = *((int32_t *)(payload + 48));\n      pvtData.velE = *((int32_t *)(payload + 52));\n      pvtData.velD = *((int32_t *)(payload + 56));\n      pvtData.gSpeed = *((int32_t *)(payload + 60));\n      pvtData.headMot = *((int32_t *)(payload + 64));\n      pvtData.sAcc = *((uint32_t *)(payload + 68));\n      pvtData.headAcc = *((uint32_t *)(payload + 72));\n      pvtData.pDOP = *((uint16_t *)(payload + 76));\n      pvtData.headVeh = *((int32_t *)(payload + 84));\n      pvtData.validData = true;\n      updatePositionCache();\n    } else if (msgClass == 0x01 && msgId == 0x09 && payloadLen >= 20) {\n      // NAV-ODO\n      odoData.version = payload[0];\n      odoData.iTOW = *((uint32_t *)(payload + 4));\n      odoData.distance = *((uint32_t *)(payload + 8));\n      odoData.totalDistance = *((uint32_t *)(payload + 12));\n      odoData.distanceStd = *((uint32_t *)(payload + 16));\n      odoData.valid = true;\n    } else if (msgClass == 0x01 && msgId == 0x12 && payloadLen >= 36) {\n      // NAV-VELNED\n      velnedData.iTOW = *((uint32_t *)(payload + 0));\n      velnedData.velN = *((int32_t *)(payload + 4));\n      velnedData.velE = *((int32_t *)(payload + 8));\n      velnedData.velD = *((int32_t *)(payload + 12));\n      velnedData.speed = *((uint32_t *)(payload + 16));\n      velnedData.gSpeed = *((uint32_t *)(payload + 20));\n      velnedData.heading = *((int32_t *)(payload + 24));\n      velnedData.sAcc = *((uint32_t *)(payload + 28));\n      velnedData.cAcc = *((uint32_t *)(payload + 32));\n      velnedData.valid = true;\n    } else if (msgClass == 0x01 && msgId == 0x21 && payloadLen >= 20) {\n      // NAV-TIMEUTC\n      timeutcData.iTOW = *((uint32_t *)(payload + 0));\n      timeutcData.tAcc = *((uint32_t *)(payload + 4));\n      timeutcData.nano = *((int32_t *)(payload + 8));\n      timeutcData.year = *((uint16_t *)(payload + 12));\n      timeutcData.month = payload[14];\n      timeutcData.day = payload[15];\n      timeutcData.hour = payload[16];\n      timeutcData.min = payload[17];\n      timeutcData.sec = payload[18];\n      timeutcData.valid = payload[19];\n      timeutcData.validData = true;\n    } else if (msgClass == 0x01 && msgId == 0x35 && payloadLen >= 8) {\n      // NAV-SAT\n      satData.iTOW = *((uint32_t *)(payload + 0));\n      satData.numSvs = payload[5];\n      uint16_t offset = 8;\n      for (int i = 0; i < satData.numSvs && i < 32; i++) {\n        if (offset + 12 <= payloadLen) {\n          satData.satellites[i].gnssId = payload[offset + 0];\n          satData.satellites[i].svId = payload[offset + 1];\n          satData.satellites[i].cno = payload[offset + 2];\n          satData.satellites[i].elev = (int8_t)payload[offset + 3];\n          satData.satellites[i].azim = *((int16_t *)(payload + offset + 4));\n          satData.satellites[i].prRes = *((int16_t *)(payload + offset + 6));\n          satData.satellites[i].flags = *((uint32_t *)(payload + offset + 8));\n          satData.satellites[i].used = (satData.satellites[i].flags & 0x08) != 0;\n          offset += 12;\n        }\n      }\n      satData.valid = true;\n    } else if (msgClass == 0x02 && msgId == 0x15 && payloadLen >= 16) {\n      // RXM-RAWX\n      rawxData.rcvTow = *((double *)(payload + 0));\n      rawxData.week = *((uint16_t *)(payload + 8));\n      rawxData.leapS = (int8_t)payload[10];\n      rawxData.numMeas = payload[11];\n      rawxData.recStat = payload[12];\n      uint16_t offset = 16;\n      for (int i = 0; i < rawxData.numMeas && i < 32; i++) {\n        if (offset + 32 <= payloadLen) {\n          rawxData.measurements[i].prMes = *((double *)(payload + offset + 0));\n          rawxData.measurements[i].cpMes = *((double *)(payload + offset + 8));\n          rawxData.measurements[i].doMes = *((float *)(payload + offset + 16));\n          rawxData.measurements[i].gnssId = payload[offset + 20];\n          rawxData.measurements[i].svId = payload[offset + 21];\n          rawxData.measurements[i].freqId = payload[offset + 22];\n          uint16_t lt;\n          memcpy(&lt, payload + offset + 23, 2);\n          rawxData.measurements[i].locktime = lt;\n          rawxData.measurements[i].cno = payload[offset + 25];\n          rawxData.measurements[i].prStdev = payload[offset + 26];\n          rawxData.measurements[i].cpStdev = payload[offset + 27];\n          rawxData.measurements[i].doStdev = payload[offset + 28];\n          rawxData.measurements[i].trkStat = payload[offset + 29];\n          offset += 32;\n        }\n      }\n      rawxData.valid = true;\n    } else if (msgClass == 0x02 && msgId == 0x13 && payloadLen >= 8) {\n      // RXM-SFRBX\n      sfrbxData.gnssId = payload[0];\n      sfrbxData.svId = payload[1];\n      sfrbxData.freqId = payload[3];\n      sfrbxData.numWords = payload[4];\n      sfrbxData.chn = payload[5];\n      sfrbxData.version = payload[6];\n      for (int i = 0; i < sfrbxData.numWords && i < 10; i++) {\n        if (8 + i * 4 <= payloadLen) {\n          sfrbxData.dwrd[i] = *((uint32_t *)(payload + 8 + i * 4));\n        }\n      }\n      sfrbxData.valid = true;\n    } else if (msgClass == 0x0A && msgId == 0x09 && payloadLen >= 60) {\n      // MON-HW\n      hwData.pinSel = *((uint32_t *)(payload + 0));\n      hwData.pinBank = *((uint32_t *)(payload + 4));\n      hwData.pinDir = *((uint32_t *)(payload + 8));\n      hwData.pinVal = *((uint32_t *)(payload + 12));\n      hwData.noisePerMS = *((uint16_t *)(payload + 16));\n      hwData.agcCnt = *((uint16_t *)(payload + 18));\n      hwData.aStatus = payload[20];\n      hwData.aPower = payload[21];\n      hwData.flags = payload[22];\n      hwData.usedMask = *((uint32_t *)(payload + 24));\n      hwData.jamInd = payload[45];\n      hwData.valid = true;\n    }\n  }\n\n  void processUBX() {\n    while (gpsSerial.available()) {\n      uint8_t c = gpsSerial.read();\n\n      if (!ubxReceiving) {\n        if (ubxBufferIndex == 0 && c == 0xB5) {\n          ubxBuffer[ubxBufferIndex++] = c;\n        } else if (ubxBufferIndex == 1 && c == 0x62) {\n          ubxBuffer[ubxBufferIndex++] = c;\n          ubxReceiving = true;\n        } else {\n          ubxBufferIndex = 0;\n        }\n      } else {\n        ubxBuffer[ubxBufferIndex++] = c;\n\n        if (ubxBufferIndex >= 6) {\n          uint16_t payloadLen = ubxBuffer[4] | (ubxBuffer[5] << 8);\n          uint16_t totalLen = 6 + payloadLen + 2;\n\n          if (ubxBufferIndex >= totalLen) {\n            uint8_t ckA, ckB;\n            calculateChecksum(&ubxBuffer[2], payloadLen + 4, ckA, ckB);\n\n            if (ckA == ubxBuffer[totalLen - 2] && ckB == ubxBuffer[totalLen - 1]) {\n              parseUBXResponse(ubxBuffer[2], ubxBuffer[3], &ubxBuffer[6], payloadLen);\n            }\n\n            ubxReceiving = false;\n            ubxBufferIndex = 0;\n          }\n\n          else if (ubxBufferIndex >= sizeof(ubxBuffer)) {\n            ubxReceiving = false;\n            ubxBufferIndex = 0;\n          }\n        }\n      }\n    }\n  }\n\n  bool checkACKResponse() {\n    unsigned long startTime = millis();\n    uint8_t state = 0;\n    uint8_t cls = 0, id = 0;\n\n    while (millis() - startTime < UBX_RESPONSE_TIMEOUT) {\n      if (!gpsSerial.available()) {\n        delay(1);\n        continue;\n      }\n\n      uint8_t c = gpsSerial.read();\n\n      switch (state) {\n        case 0:\n          if (c == 0xB5) state = 1;\n          break;\n        case 1: state = (c == 0x62) ? 2 : 0; break;\n        case 2:\n          cls = c;\n          state = 3;\n          break;\n        case 3:\n          id = c;\n          state = 4;\n          break;\n        // Length (2 bytes) and payload (if 2 bytes ACK) skip\n        case 4: state = 5; break;  // len LSB\n        case 5: state = 6; break;  // len MSB\n        case 6: state = 7; break;  // payload[0] = ackClass\n        case 7: state = 8; break;  // payload[1] = ackId\n        case 8: state = 9; break;  // ckA\n        case 9:                    // ckB\n          if (cls == 0x05) {\n            return (id == 0x01);  // true = ACK-ACK, false = ACK-NAK\n          }\n          // No ACK => keep searching\n          state = 0;\n          break;\n        default: state = 0; break;\n      }\n    }\n    return false;\n  }\n\n  void processCommandQueue() {\n    if (commandQueue.empty() || processingCommand)\n      return;\n\n    UBXCommand &cmd = commandQueue.front();\n\n    // Send timestamp = 0\n    if (cmd.timestamp == 0) {\n      sendUBX(cmd.data, cmd.length);\n      cmd.timestamp = millis();\n      processingCommand = true;\n      return;\n    }\n\n    // Timeout but no ACK\n    if (millis() - cmd.timestamp > UBX_RESPONSE_TIMEOUT) {\n      if (cmd.retries > 0) {\n        sendUBX(cmd.data, cmd.length);\n        cmd.retries--;\n        cmd.timestamp = millis();\n      } else {\n        // Give up\n        commandQueue.pop();\n        processingCommand = false;\n      }\n    }\n  }\n\n  void setBaudrate(uint8_t baudIndex) {\n    if (baudIndex < 8) {\n      sendUBX(UBX_BAUDRATES[baudIndex], sizeof(UBX_BAUDRATES[0]));\n    }\n  }\n\n  void setAutobaudrate(uint8_t gpsRx, uint8_t gpsTx) {\n    const int BAUDRATES[] = { 4800, 9600, 19200, 38400, 57600, 115200, 230400, 460800 };\n    const uint8_t TEST_POLL_MSG[] = { 0xB5, 0x62, 0x06, 0x00, 0x00, 0x00, 0x06, 0x18 };\n\n    for (int i = 0; i < 8; i++) {\n      gpsSerial.begin(BAUDRATES[i], SERIAL_8N1, gpsRx, gpsTx);\n      delay(250);\n\n      // Clear any existing data\n      while (gpsSerial.available())\n        gpsSerial.read();\n\n      delay(50);\n\n      // Send test message\n      for (size_t j = 0; j < sizeof(TEST_POLL_MSG); j++) {\n        gpsSerial.write(TEST_POLL_MSG[j]);\n      }\n      gpsSerial.flush();\n\n      if (checkACKResponse()) {\n        // Found working baud rate, keep using it\n        Serial.print(\"GPS found at \");\n        Serial.print(BAUDRATES[i]);\n        Serial.println(\" baud\");\n        return;\n      }\n    }\n\n    // If nothing worked, default to 9600\n    Serial.println(\"GPS auto baud failed, defaulting to 9600\");\n    gpsSerial.begin(9600, SERIAL_8N1, gpsRx, gpsTx);\n  }\n\n  int calculateDayOfWeek(int y, int m, int d) {\n    if (m < 3) {\n      m += 12;\n      y -= 1;\n    }\n    int k = y % 100, j = y / 100;\n    int f = d + 13 * (m + 1) / 5 + k + k / 4 + j / 4 + 5 * j;\n    return ((f % 7) + 6) % 7;\n  }\n\n  bool isDaylightSavingTime(int year, int month, int day, int hour) {\n    if (!autoDST)\n      return false;\n\n    if (month < 3 || month > 10)\n      return false;\n    if (month > 3 && month < 10)\n      return true;\n\n    if (month == 3) {\n      int lastSunday = 31;\n      while (calculateDayOfWeek(year, 3, lastSunday) != 0)\n        lastSunday--;\n      if (day < lastSunday)\n        return false;\n      if (day > lastSunday)\n        return true;\n      return hour >= 1;\n    }\n\n    if (month == 10) {\n      int lastSunday = 31;\n      while (calculateDayOfWeek(year, 10, lastSunday) != 0)\n        lastSunday--;\n      if (day < lastSunday)\n        return true;\n      if (day > lastSunday)\n        return false;\n      return hour < 1;\n    }\n\n    return false;\n  }\n\n  void convertToLocalTime(int &year, int &month, int &day, int &hour, int &minute, int &second) {\n    float offset = timezoneOffset;\n    if (isDaylightSavingTime(year, month, day, hour)) {\n      offset += 1.0;\n    }\n\n    int offsetHours = (int)offset;\n    int offsetMinutes = (int)((offset - offsetHours) * 60);\n\n    hour += offsetHours;\n    minute += offsetMinutes;\n\n    if (minute >= 60) {\n      minute -= 60;\n      hour++;\n    } else if (minute < 0) {\n      minute += 60;\n      hour--;\n    }\n\n    if (hour >= 24) {\n      hour -= 24;\n      day++;\n      int daysInMonth[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };\n      bool isLeapYear = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);\n      if (isLeapYear)\n        daysInMonth[1] = 29;\n\n      if (day > daysInMonth[month - 1]) {\n        day = 1;\n        month++;\n        if (month > 12) {\n          month = 1;\n          year++;\n        }\n      }\n    } else if (hour < 0) {\n      hour += 24;\n      day--;\n      if (day < 1) {\n        month--;\n        if (month < 1) {\n          month = 12;\n          year--;\n        }\n        int daysInMonth[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };\n        bool isLeapYear = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);\n        if (isLeapYear)\n          daysInMonth[1] = 29;\n        day = daysInMonth[month - 1];\n      }\n    }\n  }\n\n  void updateTimeCache() {\n    if (!hasFix()) {\n      timeCache.valid = false;\n      return;\n    }\n\n    // Try to get time from PVT first (most comprehensive)\n    int year, month, day, hour, minute, second;\n\n    if (pvtData.validData && (pvtData.valid & 0x03) == 0x03) {\n      year = pvtData.year;\n      month = pvtData.month;\n      day = pvtData.day;\n      hour = pvtData.hour;\n      minute = pvtData.minute;\n      second = pvtData.second;\n    } else if (timeutcData.validData && (timeutcData.valid & 0x03) == 0x03) {\n      year = timeutcData.year;\n      month = timeutcData.month;\n      day = timeutcData.day;\n      hour = timeutcData.hour;\n      minute = timeutcData.min;\n      second = timeutcData.sec;\n    } else {\n      timeCache.valid = false;\n      return;\n    }\n\n    convertToLocalTime(year, month, day, hour, minute, second);\n\n    timeCache.year = year;\n    timeCache.month = month;\n    timeCache.day = day;\n    timeCache.hour = hour;\n    timeCache.minute = minute;\n    timeCache.second = second;\n    timeCache.dayIndex = calculateDayOfWeek(year, month, day);\n    timeCache.valid = true;\n    timeCache.lastUpdate = millis();\n  }\n\n  bool checkGeofence() {\n    if (!geofence.active || !hasFix())\n      return false;\n\n    double distance = calculateDistance(getLatitude(), getLongitude(),\n                                        geofence.centerLat, geofence.centerLon);\n    return distance <= geofence.radius;\n  }\n\npublic:\n  BetterGPS()\n    : gpsSerial(1) {\n    timeCache.valid = false;\n    posllhData.valid = false;\n    statusData.valid = false;\n    dopData.valid = false;\n    pvtData.validData = false;\n    odoData.valid = false;\n    velnedData.valid = false;\n    timeutcData.validData = false;\n    satData.valid = false;\n    rawxData.valid = false;\n    sfrbxData.valid = false;\n    hwData.valid = false;\n    ubxBufferIndex = 0;\n    ubxReceiving = false;\n    processingCommand = false;\n    timezoneOffset = TIMEZONE_OFFSET;\n    autoDST = AUTO_DST;\n    geofence.active = false;\n    lastGeofenceState = false;\n\n    // Initialize position cache\n    posCache.valid = false;\n    posCache.latitude = 0;\n    posCache.longitude = 0;\n    posCache.altitude = 0;\n    posCache.speedKmph = 0;\n    posCache.speedMps = 0;\n    posCache.course = 0;\n    posCache.satellites = 0;\n    posCache.hdop = 99.99;\n    posCache.lastUpdate = 0;\n  }\n\n  void begin(int gpsRx, int gpsTx = -1) {\n    setAutobaudrate(gpsRx, gpsTx);\n    delay(500);\n\n    setUpdateRate(UPDATE_RATE);\n    delay(100);\n\n    setPowerMode(POWER_SAVING_ON ? PowerMode::PowerSave : PowerMode::Continuous);\n    delay(100);\n\n    // Disable NMEA messages (we're using UBX only)\n    if (DISABLE_GGA) {\n      sendUBX(UBX_DISABLE_GGA, sizeof(UBX_DISABLE_GGA));\n      delay(50);\n    }\n    if (DISABLE_GLL) {\n      sendUBX(UBX_DISABLE_GLL, sizeof(UBX_DISABLE_GLL));\n      delay(50);\n    }\n    if (DISABLE_GSA) {\n      sendUBX(UBX_DISABLE_GSA, sizeof(UBX_DISABLE_GSA));\n      delay(50);\n    }\n    if (DISABLE_GSV) {\n      sendUBX(UBX_DISABLE_GSV, sizeof(UBX_DISABLE_GSV));\n      delay(50);\n    }\n    if (DISABLE_RMC) {\n      sendUBX(UBX_DISABLE_RMC, sizeof(UBX_DISABLE_RMC));\n      delay(50);\n    }\n    if (DISABLE_VTG) {\n      sendUBX(UBX_DISABLE_VTG, sizeof(UBX_DISABLE_VTG));\n      delay(50);\n    }\n\n    setGNSS(GPS_ENABLED, GALILEO_ENABLED, GLONASS_ENABLED, BEIDOU_ENABLED);\n    delay(100);\n\n    setSmoothing(STARTUP_SMOOTHING);\n    delay(100);\n\n    if (STARTUP_POSITION) {\n      requestPosition();\n      delay(200);\n    }\n    if (STARTUP_STATUS) {\n      requestStatus();\n      delay(200);\n    }\n    if (STARTUP_SATELLITE_INFO) {\n      requestSatellites();\n      delay(200);\n    }\n    if (STARTUP_VERSION) {\n      requestVersion();\n      delay(200);\n    }\n\n    saveConfig(static_cast<SaveLocation>(DEFAULT_SAVE_LOCATION));\n    delay(500);\n  }\n\n  void update() {\n    processUBX();\n    processCommandQueue();\n\n    if (statusData.valid && statusData.gpsFix >= 2) {\n      if (millis() - _lastAutoUpdate >= _updateIntervalMs) {\n        requestPosition();\n        _lastAutoUpdate = millis();\n      }\n    }\n\n    if (posCache.valid && geofence.active) {\n      bool currentState = checkGeofence();\n      if (currentState != lastGeofenceState) {\n        lastGeofenceState = currentState;\n      }\n    }\n  }\n\n  void setUpdateRate(UpdateRate rate) {\n    switch (rate) {\n      case UpdateRate::HZ_1:\n        sendUBX(UBX_RATE_1HZ, sizeof(UBX_RATE_1HZ));\n        _updateIntervalMs = 1000;\n        break;\n      case UpdateRate::HZ_5:\n        sendUBX(UBX_RATE_5HZ, sizeof(UBX_RATE_5HZ));\n        _updateIntervalMs = 200;\n        break;\n      case UpdateRate::HZ_10:\n        sendUBX(UBX_RATE_10HZ, sizeof(UBX_RATE_10HZ));\n        _updateIntervalMs = 100;\n        break;\n    }\n    delay(100);\n  }\n\n  void requestPosition() {\n    posllhData.valid = false;\n    sendUBX(UBX_POLL_POSLLH, sizeof(UBX_POLL_POSLLH));\n  }\n\n  void requestStatus() {\n    statusData.valid = false;\n    sendUBX(UBX_POLL_STATUS, sizeof(UBX_POLL_STATUS));\n  }\n\n  void requestDOP() {\n    dopData.valid = false;\n    sendUBX(UBX_POLL_DOP, sizeof(UBX_POLL_DOP));\n  }\n\n  void requestPVT() {\n    pvtData.validData = false;\n    sendUBX(UBX_POLL_PVT, sizeof(UBX_POLL_PVT));\n  }\n\n  void requestOdometer() {\n    odoData.valid = false;\n    sendUBX(UBX_POLL_ODO, sizeof(UBX_POLL_ODO));\n  }\n\n  void requestVelocity() {\n    velnedData.valid = false;\n    sendUBX(UBX_POLL_VELNED, sizeof(UBX_POLL_VELNED));\n  }\n\n  void requestTimeUTC() {\n    timeutcData.validData = false;\n    sendUBX(UBX_POLL_TIMEUTC, sizeof(UBX_POLL_TIMEUTC));\n  }\n\n  void requestSatellites() {\n    satData.valid = false;\n    sendUBX(UBX_POLL_SAT, sizeof(UBX_POLL_SAT));\n  }\n\n  void requestRawMeasurements() {\n    rawxData.valid = false;\n    sendUBX(UBX_POLL_RAWX, sizeof(UBX_POLL_RAWX));\n  }\n\n  void requestSubframeData() {\n    sfrbxData.valid = false;\n    sendUBX(UBX_POLL_SFRBX, sizeof(UBX_POLL_SFRBX));\n  }\n\n  void requestVersion() {\n    sendUBX(UBX_POLL_VERSION, sizeof(UBX_POLL_VERSION));\n  }\n\n  void requestHardwareStatus() {\n    hwData.valid = false;\n    sendUBX(UBX_POLL_HW, sizeof(UBX_POLL_HW));\n  }\n\n  void setPowerMode(PowerMode mode) {\n    if (mode == PowerMode::PowerSave)\n      sendUBX(UBX_POWER_SAVE, sizeof(UBX_POWER_SAVE));\n    else\n      sendUBX(UBX_POWER_CONTINUOUS, sizeof(UBX_POWER_CONTINUOUS));\n  }\n\n  bool setDynamicModel(DynamicModel model) {\n    switch (model) {\n      case DynamicModel::Portable:\n        sendUBX(UBX_NAV5_PORTABLE, sizeof(UBX_NAV5_PORTABLE));\n        break;\n      case DynamicModel::Stationary:\n        sendUBX(UBX_NAV5_STATIONARY, sizeof(UBX_NAV5_STATIONARY));\n        break;\n      case DynamicModel::Pedestrian:\n        sendUBX(UBX_NAV5_PEDESTRIAN, sizeof(UBX_NAV5_PEDESTRIAN));\n        break;\n      case DynamicModel::Automotive:\n        sendUBX(UBX_NAV5_AUTOMOTIVE, sizeof(UBX_NAV5_AUTOMOTIVE));\n        break;\n      case DynamicModel::Sea:\n      case DynamicModel::Airborne1g:\n      case DynamicModel::Airborne2g:\n      case DynamicModel::Airborne4g:\n        // No pre-calculated command for these\n        return false;\n      default:\n        return false;\n    }\n    delay(100);\n    return true;\n  }\n\n  bool setGNSS(bool gps, bool galileo, bool glonass, bool beidou) {\n    // Pre-calculated payloads\n    if (gps && galileo && glonass && beidou) {\n      sendUBX(UBX_GNSS_ALL, sizeof(UBX_GNSS_ALL));\n    } else if (gps && galileo && !glonass && !beidou) {\n      sendUBX(UBX_GNSS_GPS_GALILEO, sizeof(UBX_GNSS_GPS_GALILEO));\n    } else if (gps && !galileo && !glonass && !beidou) {\n      sendUBX(UBX_GNSS_GPS_ONLY, sizeof(UBX_GNSS_GPS_ONLY));\n    } else {\n      // Dynamic payload for other combinations\n      uint8_t frame[60];\n      frame[0] = 0xB5;\n      frame[1] = 0x62;\n      frame[2] = 0x06;\n      frame[3] = 0x3E;\n      frame[4] = 0x34;\n      frame[5] = 0x00;  // payload length = 52 bytes (0x34), total frame = 60\n\n      uint8_t *p = &frame[6];\n      p[0] = 0x00;\n      p[1] = 0x00;\n      p[2] = 0x20;\n      p[3] = 0x06;  // header, 6 block\n\n      // GPS\n      p[4] = 0x00;\n      p[5] = 0x08;\n      p[6] = 0x10;\n      p[7] = 0x00;\n      p[8] = gps ? 0x01 : 0x00;\n      p[9] = 0x00;\n      p[10] = 0x01;\n      p[11] = 0x01;\n      // SBAS (always off)\n      p[12] = 0x01;\n      p[13] = 0x00;\n      p[14] = 0x03;\n      p[15] = 0x00;\n      p[16] = 0x00;\n      p[17] = 0x00;\n      p[18] = 0x01;\n      p[19] = 0x01;\n      // Galileo\n      p[20] = 0x02;\n      p[21] = 0x04;\n      p[22] = 0x08;\n      p[23] = 0x00;\n      p[24] = galileo ? 0x01 : 0x00;\n      p[25] = 0x00;\n      p[26] = 0x01;\n      p[27] = 0x01;\n      // BeiDou\n      p[28] = 0x03;\n      p[29] = 0x08;\n      p[30] = 0x10;\n      p[31] = 0x00;\n      p[32] = beidou ? 0x01 : 0x00;\n      p[33] = 0x00;\n      p[34] = 0x01;\n      p[35] = 0x01;\n      // QZSS (always off)\n      p[36] = 0x05;\n      p[37] = 0x00;\n      p[38] = 0x03;\n      p[39] = 0x00;\n      p[40] = 0x00;\n      p[41] = 0x00;\n      p[42] = 0x01;\n      p[43] = 0x01;\n      // GLONASS\n      p[44] = 0x06;\n      p[45] = 0x08;\n      p[46] = 0x0E;\n      p[47] = 0x00;\n      p[48] = glonass ? 0x01 : 0x00;\n      p[49] = 0x00;\n      p[50] = 0x01;\n      p[51] = 0x01;\n\n      uint8_t ckA = 0, ckB = 0;\n      for (uint8_t i = 2; i < 58; i++) {\n        ckA += frame[i];\n        ckB += ckA;\n      }\n      frame[58] = ckA;\n      frame[59] = ckB;\n\n      sendUBX(frame, 60);\n    }\n    delay(100);\n    return true;\n  }\n\n  void setSmoothing(bool enable) {\n    if (enable)\n      sendUBX(UBX_ENABLE_SMOOTHING, sizeof(UBX_ENABLE_SMOOTHING));\n    else\n      sendUBX(UBX_NO_SMOOTHING, sizeof(UBX_NO_SMOOTHING));\n    delay(100);\n  }\n\n  void saveConfig(SaveLocation target = SaveLocation::Both) {\n    switch (target) {\n      case SaveLocation::Flash:\n        sendUBX(UBX_SAVE_FLASH, sizeof(UBX_SAVE_FLASH));\n        break;\n      case SaveLocation::BBR:\n        sendUBX(UBX_SAVE_BBR, sizeof(UBX_SAVE_BBR));\n        break;\n      case SaveLocation::Both:\n        sendUBX(UBX_SAVE_ALL, sizeof(UBX_SAVE_ALL));\n        break;\n    }\n    delay(200);\n  }\n\n  void resetHot() {\n    sendUBX(UBX_RESET_HOT, sizeof(UBX_RESET_HOT));\n    delay(1000);\n  }\n\n  void resetWarm() {\n    sendUBX(UBX_RESET_WARM, sizeof(UBX_RESET_WARM));\n    delay(2000);\n  }\n\n  void resetCold() {\n    sendUBX(UBX_RESET_COLD, sizeof(UBX_RESET_COLD));\n    delay(3000);\n  }\n\n  void sendCustomUBX(const uint8_t *cmd, uint16_t len) {\n    sendUBX(cmd, len);\n  }\n\n  bool hasFix() {\n    // Check if we have a valid fix from status data\n    if (statusData.valid && statusData.gpsFix >= 2) {\n      return true;\n    }\n\n    // Also check PVT data\n    if (pvtData.validData && pvtData.fixType >= 2) {\n      return true;\n    }\n\n    // Check position cache\n    return posCache.valid && (millis() - posCache.lastUpdate < 5000);\n  }\n\n  FixType getFixType() {\n    return statusData.valid ? static_cast<FixType>(statusData.gpsFix) : FixType::NoFix;\n  }\n\n  double getLatitude() {\n    return posCache.valid ? posCache.latitude : 0.0;\n  }\n\n  double getLongitude() {\n    return posCache.valid ? posCache.longitude : 0.0;\n  }\n\n  double getAltitude() {\n    return posCache.valid ? posCache.altitude : 0.0;\n  }\n\n  double getSpeedKmph() {\n    return posCache.valid ? posCache.speedKmph : 0.0;\n  }\n\n  double getSpeedMps() {\n    return posCache.valid ? posCache.speedMps : 0.0;\n  }\n\n  double getCourse() {\n    return posCache.valid ? posCache.course : 0.0;\n  }\n\n  uint8_t getSatelliteCount() {\n    if (pvtData.validData)\n      return pvtData.numSV;\n    if (satData.valid)\n      return getUsedSatelliteCount();\n    return 0;\n  }\n\n  double getHDOP() {\n    if (dopData.valid)\n      return dopData.hDOP / 100.0;\n    return 99.99;\n  }\n\n  const NAV_POSLLH_Response &getPOSLLH() const {\n    return posllhData;\n  }\n  const NAV_STATUS_Response &getStatus() const {\n    return statusData;\n  }\n  const NAV_DOP_Response &getDOP() const {\n    return dopData;\n  }\n  const NAV_PVT_Response &getPVT() const {\n    return pvtData;\n  }\n  const NAV_ODO_Response &getOdometer() const {\n    return odoData;\n  }\n  const NAV_VELNED_Response &getVelocity() const {\n    return velnedData;\n  }\n  const NAV_TIMEUTC_Response &getTimeUTC() const {\n    return timeutcData;\n  }\n  const NAV_SAT_Response &getSatellites() const {\n    return satData;\n  }\n  const RXM_RAWX_Response &getRawMeasurements() const {\n    return rawxData;\n  }\n  const RXM_SFRBX_Response &getSubframeData() const {\n    return sfrbxData;\n  }\n  const MON_HW_Response &getHardwareStatus() const {\n    return hwData;\n  }\n\n  bool isPositionReady() {\n    return posllhData.valid;\n  }\n\n  bool isStatusReady() {\n    return statusData.valid;\n  }\n\n  bool isDOPReady() {\n    return dopData.valid;\n  }\n\n  bool isPVTReady() {\n    return pvtData.validData;\n  }\n\n  bool isOdometerReady() {\n    return odoData.valid;\n  }\n\n  bool isVelocityReady() {\n    return velnedData.valid;\n  }\n\n  bool isTimeUTCReady() {\n    return timeutcData.validData;\n  }\n\n  bool isSatellitesReady() {\n    return satData.valid;\n  }\n\n  bool isRawMeasurementsReady() {\n    return rawxData.valid;\n  }\n\n  bool isSubframeDataReady() {\n    return sfrbxData.valid;\n  }\n\n  bool isHardwareStatusReady() {\n    return hwData.valid;\n  }\n\n  bool waitForPosition(uint32_t timeout_ms) {\n    unsigned long start = millis();\n    while (!posllhData.valid && (millis() - start) < timeout_ms) {\n      update();\n      delay(10);\n    }\n    return posllhData.valid;\n  }\n\n  bool waitForSatellites(uint32_t timeout_ms) {\n    unsigned long start = millis();\n    while (!satData.valid && (millis() - start) < timeout_ms) {\n      update();\n      delay(10);\n    }\n    return satData.valid;\n  }\n\n  uint8_t getUsedSatelliteCount() {\n    if (!satData.valid)\n      return 0;\n    uint8_t count = 0;\n    for (int i = 0; i < satData.numSvs; i++)\n      if (satData.satellites[i].used)\n        count++;\n    return count;\n  }\n\n  uint8_t getSatelliteCountByGNSS(uint8_t gnssId) {\n    if (!satData.valid)\n      return 0;\n    uint8_t count = 0;\n    for (int i = 0; i < satData.numSvs; i++)\n      if (satData.satellites[i].gnssId == gnssId)\n        count++;\n    return count;\n  }\n\n  uint8_t getUsedSatelliteCountByGNSS(uint8_t gnssId) {\n    if (!satData.valid)\n      return 0;\n    uint8_t count = 0;\n    for (int i = 0; i < satData.numSvs; i++)\n      if (satData.satellites[i].gnssId == gnssId && satData.satellites[i].used)\n        count++;\n    return count;\n  }\n\n  float getAverageCNO() {\n    if (!satData.valid || satData.numSvs == 0)\n      return 0.0;\n    float sum = 0;\n    for (int i = 0; i < satData.numSvs; i++)\n      sum += satData.satellites[i].cno;\n    return sum / satData.numSvs;\n  }\n\n  bool testCommunication() {\n    requestVersion();\n\n    unsigned long start = millis();\n    while (millis() - start < 500) {\n      processUBX();\n      delay(10);\n    }\n\n    // Send CFG-PRT and wait for ACK\n    sendUBX(UBX_POLL_STATUS, sizeof(UBX_POLL_STATUS));\n    delay(100);\n    processUBX();\n    return statusData.valid;  // Valid response => successful communication\n  }\n\n  bool validateConfiguration() {\n    if (!testCommunication())\n      return false;\n\n    requestHardwareStatus();\n    unsigned long start = millis();\n    while (!hwData.valid && millis() - start < 500) {\n      processUBX();\n      delay(10);\n    }\n    if (!hwData.valid || !isAntennaOK())\n      return false;\n\n    requestSatellites();\n    start = millis();\n    while (!satData.valid && millis() - start < 1000) {\n      processUBX();\n      delay(10);\n    }\n    if (!satData.valid || satData.numSvs == 0)\n      return false;\n\n    return true;\n  }\n\n  bool isAntennaOK() {\n    if (!hwData.valid) {\n      requestHardwareStatus();\n      delay(200);\n      processUBX();\n    }\n    return hwData.valid && hwData.aStatus == 2;\n  }\n\n  uint8_t getJammingLevel() {\n    if (!hwData.valid) {\n      requestHardwareStatus();\n      delay(200);\n      processUBX();\n    }\n    return hwData.valid ? hwData.jamInd : 0;\n  }\n\n  uint8_t getSignalQuality() {\n    if (!satData.valid)\n      return 0;\n    float avgCNO = getAverageCNO();\n    uint8_t usedSats = getUsedSatelliteCount();\n    uint8_t cnoScore = (avgCNO / 50.0) * 50;\n    uint8_t satScore = (usedSats / 12.0) * 50;\n    return min(100, cnoScore + satScore);\n  }\n\n  void setTimezone(float offsetHours, bool enableAutoDST = false) {\n    timezoneOffset = offsetHours;\n    autoDST = enableAutoDST;\n    timeCache.valid = false;\n  }\n\n  void getLocalTime(int &year, int &month, int &day, int &dayIndex, int &hour, int &minute, int &second) {\n    if (!hasFix()) {\n      year = month = day = dayIndex = hour = minute = second = 0;\n      return;\n    }\n    if (!timeCache.valid)\n      updateTimeCache();\n    if (timeCache.valid) {\n      year = timeCache.year;\n      month = timeCache.month;\n      day = timeCache.day;\n      dayIndex = timeCache.dayIndex;\n      hour = timeCache.hour;\n      minute = timeCache.minute;\n      second = timeCache.second;\n    } else {\n      year = month = day = dayIndex = hour = minute = second = 0;\n    }\n  }\n\n  int getYear() {\n    if (!timeCache.valid)\n      updateTimeCache();\n    return timeCache.valid ? timeCache.year : 0;\n  }\n\n  uint8_t getMonth() {\n    if (!timeCache.valid)\n      updateTimeCache();\n    return timeCache.valid ? timeCache.month : 0;\n  }\n\n  uint8_t getDay() {\n    if (!timeCache.valid)\n      updateTimeCache();\n    return timeCache.valid ? timeCache.day : 0;\n  }\n\n  uint8_t getHour() {\n    if (!timeCache.valid)\n      updateTimeCache();\n    return timeCache.valid ? timeCache.hour : 0;\n  }\n\n  uint8_t getMinute() {\n    if (!timeCache.valid)\n      updateTimeCache();\n    return timeCache.valid ? timeCache.minute : 0;\n  }\n\n  uint8_t getSecond() {\n    if (!timeCache.valid)\n      updateTimeCache();\n    return timeCache.valid ? timeCache.second : 0;\n  }\n\n  uint8_t getDayIndex() {\n    if (!timeCache.valid)\n      updateTimeCache();\n    return timeCache.valid ? timeCache.dayIndex : 0;\n  }\n\n  double calculateDistance(double lat1, double lon1, double lat2, double lon2) {\n    const double R = 6371000.0;\n    double lat1Rad = lat1 * DEG_TO_RAD;\n    double lat2Rad = lat2 * DEG_TO_RAD;\n    double deltaLat = (lat2 - lat1) * DEG_TO_RAD;\n    double deltaLon = (lon2 - lon1) * DEG_TO_RAD;\n    double a = sin(deltaLat / 2.0) * sin(deltaLat / 2.0) + cos(lat1Rad) * cos(lat2Rad) * sin(deltaLon / 2.0) * sin(deltaLon / 2.0);\n    double c = 2.0 * atan2(sqrt(a), sqrt(1.0 - a));\n    return R * c;\n  }\n\n  void setGeofence(double centerLat, double centerLon, float radiusMeters) {\n    geofence.centerLat = centerLat;\n    geofence.centerLon = centerLon;\n    geofence.radius = radiusMeters;\n    geofence.active = true;\n    lastGeofenceState = checkGeofence();\n  }\n\n  void disableGeofence() {\n    geofence.active = false;\n  }\n\n  bool isInGeofence() {\n    return checkGeofence();\n  }\n\n  bool geofenceStateChanged() {\n    if (!geofence.active)\n      return false;\n    bool current = checkGeofence();\n    bool changed = (current != lastGeofenceState);\n    lastGeofenceState = current;\n    return changed;\n  }\n\n  UTMCoordinate convertToUTM(double lat, double lon) {\n    UTMCoordinate utm;\n    utm.zone = (uint8_t)((lon + 180.0) / 6.0) + 1;\n    const char bands[] = \"CDEFGHJKLMNPQRSTUVWXX\";\n    int bandIndex = (int)((lat + 80.0) / 8.0);\n    if (bandIndex < 0)\n      bandIndex = 0;\n    if (bandIndex > 20)\n      bandIndex = 20;\n    utm.band = bands[bandIndex];\n\n    double latRad = lat * DEG_TO_RAD;\n    double lonRad = lon * DEG_TO_RAD;\n    double lon0 = ((utm.zone - 1) * 6.0 - 180.0 + 3.0) * DEG_TO_RAD;\n\n    const double a = 6378137.0;\n    const double e = 0.081819191;\n    const double e2 = e * e;\n    const double k0 = 0.9996;\n\n    double N = a / sqrt(1.0 - e2 * sin(latRad) * sin(latRad));\n    double T = tan(latRad) * tan(latRad);\n    double C = e2 * cos(latRad) * cos(latRad) / (1.0 - e2);\n    double A = (lonRad - lon0) * cos(latRad);\n\n    double M = a * ((1.0 - e2 / 4.0 - 3.0 * e2 * e2 / 64.0 - 5.0 * e2 * e2 * e2 / 256.0) * latRad - (3.0 * e2 / 8.0 + 3.0 * e2 * e2 / 32.0 + 45.0 * e2 * e2 * e2 / 1024.0) * sin(2.0 * latRad) + (15.0 * e2 * e2 / 256.0 + 45.0 * e2 * e2 * e2 / 1024.0) * sin(4.0 * latRad) - (35.0 * e2 * e2 * e2 / 3072.0) * sin(6.0 * latRad));\n\n    utm.easting = k0 * N * (A + (1.0 - T + C) * A * A * A / 6.0 + (5.0 - 18.0 * T + T * T + 72.0 * C - 58.0 * e2) * A * A * A * A * A / 120.0) + 500000.0;\n\n    utm.northing = k0 * (M + N * tan(latRad) * (A * A / 2.0 + (5.0 - T + 9.0 * C + 4.0 * C * C) * A * A * A * A / 24.0 + (61.0 - 58.0 * T + T * T + 600.0 * C - 330.0 * e2) * A * A * A * A * A * A / 720.0));\n\n    if (lat < 0)\n      utm.northing += 10000000.0;\n    return utm;\n  }\n\n  UTMCoordinate getCurrentUTM() {\n    return convertToUTM(getLatitude(), getLongitude());\n  }\n};";
+
+    const STATIC_STRUCTS_H = "#pragma once\n#include <stdint.h>\n\n// ==================== RESPONSE STRUCTURES ====================\n\nstruct NAV_POSLLH_Response {\n  uint32_t iTOW;   // GPS time of week (ms)\n  int32_t lon;     // Longitude (deg * 1e-7)\n  int32_t lat;     // Latitude (deg * 1e-7)\n  int32_t height;  // Height above ellipsoid (mm)\n  int32_t hMSL;    // Height above MSL (mm)\n  uint32_t hAcc;   // Horizontal accuracy (mm)\n  uint32_t vAcc;   // Vertical accuracy (mm)\n  bool valid;\n};\n\nstruct NAV_STATUS_Response {\n  uint32_t iTOW;\n  uint8_t gpsFix;   // 0=no fix, 1=DR only, 2=2D, 3=3D, 4=GPS+DR, 5=time only\n  uint8_t flags;    // Fix status flags\n  uint8_t fixStat;  // Fix status info\n  uint8_t flags2;   // Additional flags\n  uint32_t ttff;    // Time to first fix (ms)\n  uint32_t msss;    // Milliseconds since startup\n  bool valid;\n};\n\nstruct NAV_DOP_Response {\n  uint32_t iTOW;\n  uint16_t gDOP;  // Geometric DOP * 0.01\n  uint16_t pDOP;  // Position DOP * 0.01\n  uint16_t tDOP;  // Time DOP * 0.01\n  uint16_t vDOP;  // Vertical DOP * 0.01\n  uint16_t hDOP;  // Horizontal DOP * 0.01\n  uint16_t nDOP;  // Northing DOP * 0.01\n  uint16_t eDOP;  // Easting DOP * 0.01\n  bool valid;\n};\n\nstruct NAV_PVT_Response {\n  uint32_t iTOW;\n  uint16_t year;\n  uint8_t month, day, hour, minute, second;\n  uint8_t valid;     // Validity flags\n  uint32_t tAcc;     // Time accuracy (ns)\n  int32_t nano;      // Fraction of second (ns)\n  uint8_t fixType;   // Fix type\n  uint8_t flags;     // Fix status flags\n  uint8_t flags2;    // Additional flags\n  uint8_t numSV;     // Number of satellites used\n  int32_t lon;       // Longitude (deg * 1e-7)\n  int32_t lat;       // Latitude (deg * 1e-7)\n  int32_t height;    // Height above ellipsoid (mm)\n  int32_t hMSL;      // Height above MSL (mm)\n  uint32_t hAcc;     // Horizontal accuracy (mm)\n  uint32_t vAcc;     // Vertical accuracy (mm)\n  int32_t velN;      // North velocity (mm/s)\n  int32_t velE;      // East velocity (mm/s)\n  int32_t velD;      // Down velocity (mm/s)\n  int32_t gSpeed;    // Ground speed (mm/s)\n  int32_t headMot;   // Heading of motion (deg * 1e-5)\n  uint32_t sAcc;     // Speed accuracy (mm/s)\n  uint32_t headAcc;  // Heading accuracy (deg * 1e-5)\n  uint16_t pDOP;     // Position DOP * 0.01\n  int32_t headVeh;   // Heading of vehicle (deg * 1e-5)\n  bool validData;\n};\n\nstruct NAV_ODO_Response {\n  uint8_t version;\n  uint32_t iTOW;\n  uint32_t distance;       // Ground distance since reset (m)\n  uint32_t totalDistance;  // Total cumulative distance (m)\n  uint32_t distanceStd;    // Distance accuracy (m)\n  bool valid;\n};\n\nstruct NAV_VELNED_Response {\n  uint32_t iTOW;\n  int32_t velN;     // North velocity (cm/s)\n  int32_t velE;     // East velocity (cm/s)\n  int32_t velD;     // Down velocity (cm/s)\n  uint32_t speed;   // 3D speed (cm/s)\n  uint32_t gSpeed;  // Ground speed (cm/s)\n  int32_t heading;  // Heading (deg * 1e-5)\n  uint32_t sAcc;    // Speed accuracy (cm/s)\n  uint32_t cAcc;    // Course accuracy (deg * 1e-5)\n  bool valid;\n};\n\nstruct NAV_TIMEUTC_Response {\n  uint32_t iTOW;\n  uint32_t tAcc;  // Time accuracy (ns)\n  int32_t nano;   // Fraction of second (ns)\n  uint16_t year;\n  uint8_t month, day, hour, min, sec;\n  uint8_t valid;  // Validity flags\n  bool validData;\n};\n\nstruct SatelliteInfo {\n  uint8_t gnssId;  // 0=GPS, 1=SBAS, 2=Galileo, 3=BeiDou, 5=QZSS, 6=GLONASS\n  uint8_t svId;    // Satellite ID\n  uint8_t cno;     // Signal strength (dBHz)\n  int8_t elev;     // Elevation (-90 to +90 deg)\n  int16_t azim;    // Azimuth (0-360 deg)\n  int16_t prRes;   // Pseudorange residual\n  uint32_t flags;  // Status flags\n  bool used;       // Used in navigation solution\n};\n\nstruct NAV_SAT_Response {\n  uint32_t iTOW;\n  uint8_t numSvs;\n  SatelliteInfo satellites[32];  // Max satellites\n  bool valid;\n};\n\nstruct RawMeasurement {\n  double prMes;       // Pseudorange (m)\n  double cpMes;       // Carrier phase (cycles)\n  float doMes;        // Doppler (Hz)\n  uint8_t gnssId;     // GNSS ID\n  uint8_t svId;       // Satellite ID\n  uint8_t freqId;     // GLONASS frequency slot\n  uint16_t locktime;  // Carrier phase locktime (ms)\n  uint8_t cno;        // C/N0 (dBHz)\n  uint8_t prStdev;    // Pseudorange std dev\n  uint8_t cpStdev;    // Carrier phase std dev\n  uint8_t doStdev;    // Doppler std dev\n  uint8_t trkStat;    // Tracking status\n};\n\nstruct RXM_RAWX_Response {\n  double rcvTow;    // Measurement time of week (s)\n  uint16_t week;    // GPS week\n  int8_t leapS;     // GPS leap seconds\n  uint8_t numMeas;  // Number of measurements\n  uint8_t recStat;  // Receiver tracking status\n  RawMeasurement measurements[32];\n  bool valid;\n};\n\nstruct RXM_SFRBX_Response {\n  uint8_t gnssId;     // GNSS ID\n  uint8_t svId;       // Satellite ID\n  uint8_t freqId;     // GLONASS frequency slot\n  uint8_t numWords;   // Number of data words\n  uint8_t chn;        // Channel number\n  uint8_t version;    // Message version\n  uint32_t dwrd[10];  // Data words\n  bool valid;\n};\n\nstruct MON_HW_Response {\n  uint32_t pinSel;      // Pin selection mask\n  uint32_t pinBank;     // Pin bank\n  uint32_t pinDir;      // Pin direction\n  uint32_t pinVal;      // Pin values\n  uint16_t noisePerMS;  // Noise level\n  uint16_t agcCnt;      // AGC monitor\n  uint8_t aStatus;      // Antenna status (0=INIT, 1=DONTKNOW, 2=OK, 3=SHORT, 4=OPEN)\n  uint8_t aPower;       // Antenna power (0=OFF, 1=ON, 2=DONTKNOW)\n  uint8_t flags;        // Flags\n  uint32_t usedMask;    // Pins used mask\n  uint8_t jamInd;       // Jamming indicator (0-255)\n  bool valid;\n};\n\n// ==================== GEOFENCE STRUCTURE ====================\n// Geofence => virtual perimeter around geographical location\nstruct Geofence {\n  double centerLat;  // Center latitude\n  double centerLon;  // Center longitude\n  float radius;      // Radius in meters\n  bool active;       // Is geofence active\n};\n\n// ==================== COMMAND QUEUE ====================\nstruct UBXCommand {\n  const uint8_t *data;\n  uint16_t length;\n  uint8_t retries;\n  unsigned long timestamp;\n  bool awaitingACK;\n};\n\n// ==================== UTM COORDINATE ====================\nstruct UTMCoordinate {\n  double easting;\n  double northing;\n  uint8_t zone;\n  char band;\n};\n\n// ==================== TIME CACHE ====================\nstruct TimeCache {\n  int year, month, day, dayIndex, hour, minute, second;\n  bool valid;\n  unsigned long lastUpdate;\n};";
+
+    /* =====================================================================
+       DATA MODEL
+       The HAS_xxx guard matrix comes from the module-selection block in
+       BetterGPS-proto.ino, and the Feature Reference / Feature Availability
+       table in the manual.
+       ===================================================================== */
+
+    const MODULES = {
+      NEO6MV2: { label: "NEO-6M v2", has: new Set(["MON_HW"]), lacks: new Set() },
+      NEO7MV2: { label: "NEO-7M v2", has: new Set(["MON_HW", "NAV_PVT"]), lacks: new Set() },
+      NEO8MV2: { label: "NEO-8M v2", has: new Set(["MON_HW", "NAV_PVT", "NAV_SAT", "NAV_ODO", "RXM_RAWX", "RXM_SFRBX", "MULTI_GNSS"]), lacks: new Set() },
+      M10: { label: "M10 (GY-NEO8MV2 panel)", has: new Set(["MON_HW", "NAV_PVT", "NAV_SAT", "NAV_ODO", "RXM_RAWX", "RXM_SFRBX", "MULTI_GNSS"]), lacks: new Set(["POWER_SAVE"]), unreliable: new Set(["RXM_RAWX"]) },
+    };
+    /*
+      M10 note: boards labeled "GY-NEO8MV2" often actually carry a u-blox M10
+      chip (protocol version 34.xx) in the old NEO-8M board layout. u-blox's
+      official M10 ROM 5.00 documentation explicitly states power save modes
+      are not supported, and flags raw measurement (RXM-RAWX) output as "not
+      verified before release." The legacy CFG-* commands (which this library
+      uses) remain backwards compatible.
+    */
+
+    /*
+      Every feature describes:
+       - id: internal identifier
+       - requires: null, or the MODULES[].has key this needs on the module
+       - ubx: the UBX command tag shown to the user (informational only, doesn't affect the module)
+       - title / desc
+       - section: which section-heading it falls under
+       - defaultOn: whether it's checked by default
+       - render(container, state): draws any custom fields (optional)
+       - code: { setup: [...lines...], loopHelperNeeded: bool, configDefines: {...} }
+         -> used by the generator phase, see below
+    */
+
+    const FEATURES = [
+      // ---------------- BASIC SETUP ----------------
+      {
+        id: "updateRate", section: "Basic setup", requires: null, ubx: "CFG-RATE",
+        title: "Update rate", desc: "How often the module produces a new fix.",
+        defaultOn: true, alwaysOn: true,
+        render(el, st) {
+          el.innerHTML = `
+        <div class="field-row stack">
+          <label class="group-label">Update rate</label>
+          <div class="radio-group" data-group="updateRate">
+            ${pill("1", "1 Hz", st.updateRate === "1")}
+            ${pill("5", "5 Hz", st.updateRate === "5")}
+            ${pill("10", "10 Hz", st.updateRate === "10")}
+          </div>
+        </div>
+        <div class="field-note">10 Hz needs a stable UART link and enough headroom in <code>loop()</code> to keep up - if you see dropped data, disable the unused NMEA sentences below.</div>
+      `;
+          bindPillGroup(el, "updateRate", v => st.updateRate = v);
+        }
+      },
+      {
+        id: "powerMode", section: "Basic setup", requires: null, ubx: "CFG-RXM",
+        title: "Power mode", desc: "Continuous operation, or power-saving with slower re-fixes.",
+        defaultOn: false,
+        render(el, st) {
+          const lacksPS = MODULES[st.module].lacks && MODULES[st.module].lacks.has("POWER_SAVE");
+          el.innerHTML = `
+        <div class="field-row stack">
+          <label class="group-label">Mode</label>
+          <div class="radio-group" data-group="powerMode">
+            ${pill("continuous", "Continuous", st.powerMode === "continuous")}
+            ${pill("powersave", "Power save" + (lacksPS ? " ⚠" : ""), st.powerMode === "powersave")}
+          </div>
+        </div>
+        ${lacksPS ? `<div class="inline-warning show">Selected module: <b>${MODULES[st.module].label}</b> (u-blox M10 chip). Power save mode is <b>not supported</b> here - u-blox's own documentation states this mode was removed from the M10 ROM firmware. The command will likely be rejected with ACK-NAK, or simply have no effect. The code is still generated if you pick this, but the module will probably ignore it.</div>` : ""}
+      `;
+          bindPillGroup(el, "powerMode", v => st.powerMode = v);
+        }
+      },
+      {
+        id: "gnss", section: "Basic setup", requires: "MULTI_GNSS", ubx: "CFG-GNSS",
+        title: "GNSS constellations", desc: "Which satellite systems the module uses alongside GPS.",
+        defaultOn: false,
+        render(el, st) {
+          el.innerHTML = `
+        <div class="field-row stack">
+          <label class="group-label">Constellations (GPS is always on)</label>
+          <div class="check-group" data-group="gnss">
+            ${pill("galileo", "+ Galileo", st.gnss.galileo)}
+            ${pill("glonass", "+ GLONASS", st.gnss.glonass)}
+            ${pill("beidou", "+ BeiDou", st.gnss.beidou)}
+          </div>
+        </div>
+        <div class="field-note" id="gnssNote"></div>
+      `;
+          const pills = el.querySelectorAll('[data-group="gnss"] .pill');
+          const note = el.querySelector("#gnssNote");
+          function updateNote() {
+            const combo = [st.gnss.galileo, st.gnss.glonass, st.gnss.beidou];
+            const allOn = combo.every(Boolean);
+            const onlyGalileo = st.gnss.galileo && !st.gnss.glonass && !st.gnss.beidou;
+            const noneOn = combo.every(v => !v);
+            if (allOn) note.textContent = "This combination (all 4) uses a pre-built UBX packet (UBX_GNSS_ALL).";
+            else if (onlyGalileo) note.textContent = "This combination (GPS+Galileo) uses a pre-built UBX packet (UBX_GNSS_GPS_GALILEO).";
+            else if (noneOn) note.textContent = "GPS only - uses a pre-built UBX packet (UBX_GNSS_GPS_ONLY).";
+            else note.textContent = "This combination isn't pre-built - the library assembles and checksums the command at runtime (setGNSS dynamic path).";
+          }
+          pills.forEach(p => {
+            p.addEventListener("click", () => {
+              const key = p.dataset.value;
+              st.gnss[key] = !st.gnss[key];
+              p.classList.toggle("selected", st.gnss[key]);
+              updateNote();
+              regenerate();
+            });
+          });
+          updateNote();
+        }
+      },
+      {
+        id: "dynamicModel", section: "Basic setup", requires: null, ubx: "CFG-NAV5",
+        title: "Dynamic model", desc: "Tunes the navigation filter to the kind of motion you expect.",
+        defaultOn: false,
+        render(el, st) {
+          el.innerHTML = `
+        <div class="field-row stack">
+          <label class="group-label">Profile</label>
+          <div class="radio-group" data-group="dynModel">
+            ${pill("portable", "Portable (default)", st.dynModel === "portable")}
+            ${pill("stationary", "Stationary", st.dynModel === "stationary")}
+            ${pill("pedestrian", "Pedestrian", st.dynModel === "pedestrian")}
+            ${pill("automotive", "Automotive", st.dynModel === "automotive")}
+          </div>
+        </div>
+        <div class="field-note">Only these four profiles are available - there's no pre-built UBX packet for the Sea / Airborne models, so <code>setDynamicModel()</code> would return <code>false</code> for those.</div>
+      `;
+          bindPillGroup(el, "dynModel", v => st.dynModel = v);
+        }
+      },
+      {
+        id: "smoothing", section: "Basic setup", requires: null, ubx: "CFG-NAVX5",
+        title: "Position smoothing", desc: "Steadier position for stationary setups, at the cost of lag while moving.",
+        defaultOn: false,
+      },
+      {
+        id: "nmeaDisable", section: "Basic setup", requires: null, ubx: "CFG-MSG",
+        title: "Disable NMEA sentences", desc: "This library talks UBX - turning off unused NMEA output frees up bandwidth, especially at 10 Hz.",
+        defaultOn: false,
+        render(el, st) {
+          const items = [["GGA", "gga"], ["GLL", "gll"], ["GSA", "gsa"], ["GSV", "gsv"], ["RMC", "rmc"], ["VTG", "vtg"]];
+          el.innerHTML = `
+        <div class="field-row stack">
+          <label class="group-label">Sentences to disable</label>
+          <div class="check-group" data-group="nmea">
+            ${items.map(([lbl, key]) => pill(key, lbl, st.nmea[key])).join("")}
+          </div>
+        </div>
+      `;
+          el.querySelectorAll('[data-group="nmea"] .pill').forEach(p => {
+            p.addEventListener("click", () => {
+              const key = p.dataset.value;
+              st.nmea[key] = !st.nmea[key];
+              p.classList.toggle("selected", st.nmea[key]);
+              regenerate();
+            });
+          });
+        }
+      },
+      {
+        id: "timezone", section: "Basic setup", requires: null, ubx: null,
+        title: "Timezone & daylight saving", desc: "Computes local time from the UTC timestamp.",
+        defaultOn: false,
+        render(el, st) {
+          el.innerHTML = `
+        <div class="field-row">
+          <label>UTC offset</label>
+          <div><input type="text" id="tzOffset" value="${st.tzOffset}" inputmode="decimal"><span class="unit">hours (e.g. 1.0 = UTC+1, 5.5 = UTC+5:30)</span></div>
+        </div>
+        <div class="field-row">
+          <label>Automatic DST</label>
+          <div class="radio-group" data-group="autoDst">
+            ${pill("true", "On (EU rule)", st.autoDst === true)}
+            ${pill("false", "Off", st.autoDst === false)}
+          </div>
+        </div>
+      `;
+          el.querySelector("#tzOffset").addEventListener("input", e => { st.tzOffset = e.target.value; regenerate(); });
+          bindPillGroup(el, "autoDst", v => st.autoDst = (v === "true"));
+        }
+      },
+      {
+        id: "saveLocation", section: "Basic setup", requires: null, ubx: "CFG-CFG",
+        title: "Save target", desc: "Whether — and where — the receiver stores its configuration on startup. Off by default: unchecked means no save command is sent at all.",
+        defaultOn: false,
+        render(el, st) {
+          el.innerHTML = `
+        <div class="field-row stack">
+          <label class="group-label">Target</label>
+          <div class="radio-group" data-group="saveLoc">
+            ${pill("flash", "Flash", st.saveLoc === "flash")}
+            ${pill("bbr", "BBR (battery-backed)", st.saveLoc === "bbr")}
+            ${pill("both", "Both", st.saveLoc === "both")}
+          </div>
+        </div>
+        <div class="field-note">Leave this unchecked and no save command is sent — every setting still runs fresh over UART on each <code>begin()</code>, it just won't be written to the module's flash or BBR. Check it to also persist the config on the module itself, at one of these three targets. <b>BBR</b> is battery-backed RAM rather than flash, so it's lost if power (and the backup cell) drops instead of writing permanently.</div>
+      `;
+          bindPillGroup(el, "saveLoc", v => st.saveLoc = v);
+        }
+      },
+
+      // ---------------- DATA QUERIES ----------------
+      { id: "position", section: "Data queries", requires: null, ubx: "NAV-POSLLH", title: "Position", desc: "Latitude / longitude / altitude.", defaultOn: true },
+      { id: "status", section: "Data queries", requires: null, ubx: "NAV-STATUS", title: "Fix status", desc: "Whether there's a fix, what type, and TTFF.", defaultOn: true },
+      { id: "dop", section: "Data queries", requires: null, ubx: "NAV-DOP", title: "DOP (accuracy estimate)", desc: "Horizontal / vertical / geometric DOP values.", defaultOn: false },
+      { id: "velocity", section: "Data queries", requires: null, ubx: "NAV-VELNED", title: "Velocity", desc: "Speed and heading (North/East/Down).", defaultOn: false },
+      { id: "timeutc", section: "Data queries", requires: null, ubx: "NAV-TIMEUTC", title: "UTC time", desc: "GPS-derived precise UTC time.", defaultOn: false },
+      { id: "pvt", section: "Data queries", requires: "NAV_PVT", ubx: "NAV-PVT", title: "PVT (position+velocity+time)", desc: "Position, velocity and time in a single query - the most complete one.", defaultOn: false },
+      { id: "satellites", section: "Data queries", requires: "NAV_SAT", ubx: "NAV-SAT", title: "Satellite info", desc: "Satellites in view / in use, signal strength, sky position.", defaultOn: false },
+      { id: "odometer", section: "Data queries", requires: "NAV_ODO", ubx: "NAV-ODO", title: "Odometer", desc: "Distance travelled since reset and in total.", defaultOn: false },
+      {
+        id: "rawMeasurements", section: "Data queries", requires: "RXM_RAWX", ubx: "RXM-RAWX",
+        title: "Raw measurements", desc: "Pseudorange, carrier phase, Doppler - for post-processing.", defaultOn: false,
+        render(el, st) {
+          const unreliable = MODULES[st.module].unreliable && MODULES[st.module].unreliable.has("RXM_RAWX");
+          el.innerHTML = unreliable
+            ? `<div class="inline-warning show">Selected module: <b>${MODULES[st.module].label}</b> (u-blox M10 chip). On this chip, u-blox's own documentation flags raw measurement output as <b>"not verified before release."</b> The message can be enabled and may return data, but don't build anything critical (e.g. RTK) on it without checking the output quality yourself first.</div>`
+            : `<div class="field-note" style="margin-top:12px;">No further settings - this query runs inside the <code>loop()</code>.</div>`;
+        }
+      },
+      { id: "subframe", section: "Data queries", requires: "RXM_SFRBX", ubx: "RXM-SFRBX", title: "Subframe data", desc: "Raw navigation message subframes (ephemeris, almanac).", defaultOn: false },
+      { id: "hwStatus", section: "Data queries", requires: "MON_HW", ubx: "MON-HW", title: "Hardware status", desc: "Antenna status and jamming level.", defaultOn: false },
+
+      // ---------------- CALCULATIONS ----------------
+      {
+        id: "geofence", section: "Calculations", requires: null, ubx: null,
+        title: "Geofence", desc: "Software fence around a center point and radius, using the Haversine formula.",
+        defaultOn: false,
+        render(el, st) {
+          el.innerHTML = `
+        <div class="field-row">
+          <label>Center - latitude</label>
+          <div><input type="text" id="gfLat" value="${st.geofence.lat}" inputmode="decimal"><span class="unit">°</span></div>
+        </div>
+        <div class="field-row">
+          <label>Center - longitude</label>
+          <div><input type="text" id="gfLon" value="${st.geofence.lon}" inputmode="decimal"><span class="unit">°</span></div>
+        </div>
+        <div class="field-row">
+          <label>Radius</label>
+          <div><input type="text" id="gfRadius" value="${st.geofence.radius}" inputmode="decimal"><span class="unit">meters</span></div>
+        </div>
+      `;
+          el.querySelector("#gfLat").addEventListener("input", e => { st.geofence.lat = e.target.value; regenerate(); });
+          el.querySelector("#gfLon").addEventListener("input", e => { st.geofence.lon = e.target.value; regenerate(); });
+          el.querySelector("#gfRadius").addEventListener("input", e => { st.geofence.radius = e.target.value; regenerate(); });
+        }
+      },
+      { id: "utm", section: "Calculations", requires: null, ubx: null, title: "UTM coordinates", desc: "Converts WGS-84 lat/lon to UTM easting/northing.", defaultOn: false },
+      {
+        id: "distance", section: "Calculations", requires: null, ubx: null,
+        title: "Distance calculation", desc: "Great-circle distance between two WGS-84 coordinates (Haversine).",
+        defaultOn: false,
+        render(el, st) {
+          el.innerHTML = `
+        <div class="field-row">
+          <label>Target - latitude</label>
+          <div><input type="text" id="distLat" value="${st.distance.lat}" inputmode="decimal"><span class="unit">°</span></div>
+        </div>
+        <div class="field-row">
+          <label>Target - longitude</label>
+          <div><input type="text" id="distLon" value="${st.distance.lon}" inputmode="decimal"><span class="unit">°</span></div>
+        </div>
+      `;
+          el.querySelector("#distLat").addEventListener("input", e => { st.distance.lat = e.target.value; regenerate(); });
+          el.querySelector("#distLon").addEventListener("input", e => { st.distance.lon = e.target.value; regenerate(); });
+        }
+      },
+      { id: "cacheGetters", section: "Calculations", requires: null, ubx: null, title: "Quick getters", desc: "getLatitude(), getSpeedKmph(), getCourse(), etc. - print the latest cached values.", defaultOn: true },
+
+      // ---------------- MAINTENANCE ----------------
+      { id: "validate", section: "Maintenance (on startup)", requires: null, ubx: null, title: "Verify communication", desc: "testCommunication() and validateConfiguration() - a health check on startup.", defaultOn: true },
+      {
+        id: "reset", section: "Maintenance - handle with care", requires: null, ubx: "CFG-RST",
+        title: "Reset commands", desc: "Restarts the module - no ACK, and the library inserts a blocking delay.",
+        defaultOn: false, dangerous: true,
+        render(el, st) {
+          el.innerHTML = `
+        <div class="field-row stack">
+          <label class="group-label">Which reset to include in the code (not run automatically - left commented out)</label>
+          <div class="check-group" data-group="reset">
+            ${pill("hot", "Hot", st.reset.hot)}
+            ${pill("warm", "Warm", st.reset.warm)}
+            ${pill("cold", "Cold", st.reset.cold)}
+          </div>
+        </div>
+        <div class="inline-warning show"><strong>Careful:</strong> reset commands clear the receiver's stored data (ephemeris / almanac / position, depending on type) and restart the module immediately. These are left commented out by default in the generated code.</div>
+      `;
+          el.querySelectorAll('[data-group="reset"] .pill').forEach(p => {
+            p.addEventListener("click", () => {
+              const key = p.dataset.value;
+              st.reset[key] = !st.reset[key];
+              p.classList.toggle("selected", st.reset[key]);
+              regenerate();
+            });
+          });
+        }
+      },
+      {
+        id: "saveConfigCall", section: "Maintenance - handle with care", requires: null, ubx: "CFG-CFG",
+        title: "Manual save from the loop", desc: "Adds a separate saveConfig() call (begin() already saves once on startup).",
+        defaultOn: false, dangerous: true,
+      },
+    ];
+
+    function pill(value, label, selected, flavor) {
+      return `<button type="button" class="pill${selected ? " selected" : ""}${flavor ? " " + flavor + "-flavor" : ""}" data-value="${value}">${label}</button>`;
+    }
+    function bindPillGroup(root, groupName, onChange) {
+      const group = root.querySelector(`[data-group="${groupName}"]`);
+      if (!group) return;
+      group.querySelectorAll(".pill").forEach(p => {
+        p.addEventListener("click", () => {
+          group.querySelectorAll(".pill").forEach(x => x.classList.remove("selected"));
+          p.classList.add("selected");
+          onChange(p.dataset.value);
+          regenerate();
+        });
+      });
+    }
+
+    /* =====================================================================
+       STATE
+       ===================================================================== */
+
+    const state = {
+      module: "NEO8MV2",
+      pinGpsTx: "16",   // ESP32 RX pin <- GPS TX (receive direction)
+      pinGpsRx: "17",   // ESP32 TX pin -> GPS RX (send direction)
+      ncTx: false,
+      ncRx: false,
+
+      enabled: new Set(FEATURES.filter(f => f.defaultOn).map(f => f.id)),
+      openPanels: new Set(),
+
+      updateRate: "1",
+      powerMode: "continuous",
+      gnss: { galileo: false, glonass: false, beidou: false },
+      dynModel: "portable",
+      nmea: { gga: false, gll: false, gsa: false, gsv: false, rmc: false, vtg: false },
+      tzOffset: "1.0",
+      autoDst: true,
+      saveLoc: "both",
+      geofence: { lat: "47.4979", lon: "19.0402", radius: "500" },
+      distance: { lat: "47.4979", lon: "19.0402" },
+      reset: { hot: false, warm: false, cold: false },
+
+      activeFile: "ino",
+    };
+
+    /* =====================================================================
+       MODULE SELECTOR
+       ===================================================================== */
+
+    function isFeatureAvailable(feature) {
+      if (!feature.requires) return true;
+      return MODULES[state.module].has.has(feature.requires);
+    }
+
+    document.getElementById("moduleSelect").addEventListener("click", (e) => {
+      const btn = e.target.closest(".modbtn");
+      if (!btn) return;
+      state.module = btn.dataset.module;
+      document.querySelectorAll(".modbtn").forEach(b => b.classList.toggle("active", b === btn));
+      // features that aren't available on the new module get switched off automatically
+      FEATURES.forEach(f => {
+        if (!isFeatureAvailable(f)) state.enabled.delete(f.id);
+      });
+      renderFeaturePanels();
+      regenerate();
+    });
+
+    /* =====================================================================
+       PIN INPUT + NC TOGGLES
+       ===================================================================== */
+
+    function setupPinInput(inputId, ncBtnId, stateKeyPin, stateKeyNc, stateKeyLast) {
+      const input = document.getElementById(inputId);
+      const ncBtn = document.getElementById(ncBtnId);
+
+      input.addEventListener("input", () => {
+        state[stateKeyPin] = input.value;
+        state[stateKeyLast] = input.value;
+        if (input.value.trim() !== "") {
+          state[stateKeyNc] = false;
+          ncBtn.classList.remove("active");
+          input.classList.remove("nc");
+        }
+        drawSignalDiagram();
+        updateWiringWarning();
+        regenerate();
+      });
+
+      ncBtn.addEventListener("click", () => {
+        state[stateKeyNc] = !state[stateKeyNc];
+        ncBtn.classList.toggle("active", state[stateKeyNc]);
+        input.classList.toggle("nc", state[stateKeyNc]);
+        if (state[stateKeyNc]) {
+          // remember the current pin value so switching NC back off can restore it
+          state[stateKeyLast] = state[stateKeyPin];
+          input.value = "";
+          state[stateKeyPin] = "";
+        } else {
+          // restore whatever was there before NC was turned on
+          const restored = state[stateKeyLast] || "";
+          input.value = restored;
+          state[stateKeyPin] = restored;
+        }
+        drawSignalDiagram();
+        updateWiringWarning();
+        regenerate();
+      });
+    }
+    setupPinInput("pinGpsTx", "ncToggleTx", "pinGpsTx", "ncTx", "lastPinGpsTx");
+    setupPinInput("pinGpsRx", "ncToggleRx", "pinGpsRx", "ncRx", "lastPinGpsRx");
+
+    function updateWiringWarning() {
+      const box = document.getElementById("wireWarning");
+      const msgs = [];
+      if (state.ncTx || state.pinGpsTx.trim() === "") {
+        msgs.push("<strong>GPS TX isn't wired up:</strong> the ESP32 will never get a response from the module. Auto-baud detection will fall back to 9600 after trying every rate, and every query (position, status, PVT, etc.) will stay \"not ready\" forever - commands still go out, just with no way to see the reply.");
+      }
+      if (state.ncRx || state.pinGpsRx.trim() === "") {
+        msgs.push("<strong>GPS RX isn't wired up:</strong> the ESP32 can't send commands to the module - update rate, GNSS, save, and similar settings won't take effect, and the module stays on its factory defaults.");
+      }
+      if (msgs.length) {
+        box.innerHTML = msgs.join("<br><br>");
+        box.classList.add("show");
+      } else {
+        box.classList.remove("show");
+      }
+    }
+
+    /* =====================================================================
+       JEL-DIAGRAM (SVG)
+       ===================================================================== */
+
+    function drawSignalDiagram() {
+      const svg = document.getElementById("signalSvg");
+      const W = 760, H = 92;
+      const txActive = !state.ncTx && state.pinGpsTx.trim() !== "";
+      const rxActive = !state.ncRx && state.pinGpsRx.trim() !== "";
+
+      function wire(y, active, color, dimColor, leftLabel, rightLabel, arrowRight, pinValue) {
+        const x1 = 150, x2 = W - 150;
+        const strokeColor = active ? color : dimColor;
+        const dash = active ? "" : `stroke-dasharray="4 5"`;
+        const arrowHead = arrowRight
+          ? `<path d="M ${x2 - 9} ${y - 5} L ${x2} ${y} L ${x2 - 9} ${y + 5}" fill="none" stroke="${strokeColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`
+          : `<path d="M ${x1 + 9} ${y - 5} L ${x1} ${y} L ${x1 + 9} ${y + 5}" fill="none" stroke="${strokeColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+        const flowDots = active ? `
+      <circle r="2.6" fill="${color}">
+        <animateMotion dur="1.6s" repeatCount="indefinite"
+          path="M ${arrowRight ? x1 : x2} ${y} L ${arrowRight ? x2 - 10 : x1 + 10} ${y}" />
+      </circle>` : "";
+        return `
+      <line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" stroke="${strokeColor}" stroke-width="2" ${dash} stroke-linecap="round"/>
+      ${arrowHead}
+      ${flowDots}
+      <text x="0" y="${y + 4}" class="sig-label" fill="${active ? '#D8DCE6' : '#4C5364'}">${leftLabel}</text>
+      <text x="${W}" y="${y + 4}" text-anchor="end" class="sig-label" fill="${active ? '#D8DCE6' : '#4C5364'}">${rightLabel}</text>
+      <text x="${W / 2}" y="${y - 10}" text-anchor="middle" class="sig-label" fill="${active ? color : '#4C5364'}">${active ? ("GPIO " + pinValue) : "NC - not wired"}</text>
+    `;
+      }
+
+      svg.innerHTML = `
+    <rect x="0" y="0" width="${W}" height="${H}" fill="none"/>
+    ${wire(28, txActive, "#E8A33D", "#3A3C42", "GPS · TX", "ESP32 · RX", true, escapeHtml(state.pinGpsTx))}
+    ${wire(72, rxActive, "#4FC3D9", "#3A3C42", "GPS · RX", "ESP32 · TX", false, escapeHtml(state.pinGpsRx))}
+  `;
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    /* =====================================================================
+       FEATURE PANEL RENDERING
+       ===================================================================== */
+
+    function renderFeaturePanels() {
+      const wrap = document.getElementById("featureSections");
+      wrap.innerHTML = "";
+
+      const sections = [];
+      FEATURES.forEach(f => { if (!sections.includes(f.section)) sections.push(f.section); });
+
+      sections.forEach(sectionName => {
+        const heading = document.createElement("div");
+        heading.className = "section-heading";
+        heading.textContent = sectionName;
+        wrap.appendChild(heading);
+
+        const bus = document.createElement("div");
+        bus.className = "bus";
+
+        FEATURES.filter(f => f.section === sectionName).forEach(f => {
+          const available = isFeatureAvailable(f);
+          const isEnabled = state.enabled.has(f.id);
+          const isOpen = state.openPanels.has(f.id);
+          const isSimpleToggle = !f.render;  // no configurable fields -> plain on/off, no expand
+
+          const panel = document.createElement("section");
+          panel.className = "panel"
+            + (isEnabled && available ? " enabled" : "")
+            + (isOpen && available && !isSimpleToggle ? " open" : "")
+            + (!available ? " disabled-by-module" : "")
+            + (isSimpleToggle ? " simple-toggle" : "");
+          panel.dataset.id = f.id;
+
+          const head = document.createElement("div");
+          head.className = "panel-head";
+          head.innerHTML = `
+        <div class="panel-check"></div>
+        <div class="panel-titles">
+          <div class="panel-title-row">
+            <span class="panel-title">${f.title}</span>
+            ${f.ubx ? `<span class="panel-ubx">${f.ubx}</span>` : ""}
+            ${!available ? `<span class="panel-module-tag">${requiredModuleLabel(f.requires)}</span>` : ""}
+            ${f.dangerous ? `<span class="panel-module-tag" style="color:var(--warn);border-color:rgba(232,93,76,0.4)">use with care</span>` : ""}
+          </div>
+          <div class="panel-desc">${f.desc}</div>
+        </div>
+        ${isSimpleToggle ? "" : `<div class="panel-chevron">▸</div>`}
+      `;
+          panel.appendChild(head);
+
+          if (!isSimpleToggle) {
+            const body = document.createElement("div");
+            body.className = "panel-body";
+            const inner = document.createElement("div");
+            inner.className = "panel-body-inner";
+            body.appendChild(inner);
+            if (f.render) {
+              f.render(inner, state);
+            }
+            panel.appendChild(body);
+          }
+
+          head.addEventListener("click", () => {
+            if (!available) return;
+            if (f.alwaysOn) {
+              if (isSimpleToggle) return;  // nothing to expand, nothing to toggle
+              // expand/collapse only, can't be switched off
+              if (state.openPanels.has(f.id)) state.openPanels.delete(f.id);
+              else state.openPanels.add(f.id);
+              panel.classList.toggle("open");
+              return;
+            }
+            const nowEnabled = !state.enabled.has(f.id);
+            if (nowEnabled) {
+              state.enabled.add(f.id);
+              if (!isSimpleToggle) state.openPanels.add(f.id);
+            } else {
+              state.enabled.delete(f.id);
+              state.openPanels.delete(f.id);
+            }
+            panel.classList.toggle("enabled", nowEnabled);
+            if (!isSimpleToggle) panel.classList.toggle("open", state.openPanels.has(f.id));
+            regenerate();
+          });
+
+          bus.appendChild(panel);
+        });
+
+        wrap.appendChild(bus);
+      });
+    }
+
+    function requiredModuleLabel(reqKey) {
+      // find the lowest-tier module that includes this capability
+      for (const [modKey, mod] of Object.entries(MODULES)) {
+        if (mod.has.has(reqKey)) return "csak " + mod.label + "+";
+      }
+      return "";
+    }
+
+    /* =====================================================================
+       CODE GENERATOR
+       The five output files: .ino, Better-GPS-config.h (dynamic),
+       Better-GPS.h / -commands.h / -structs.h (static - the corrected
+       files, verbatim).
+       ===================================================================== */
+
+    function on(id) { return state.enabled.has(id); }
+    function boolDefine(name, value) { return `#define ${name.padEnd(24)} ${value ? "true" : "false"}`; }
+
+    function genConfigH() {
+      const dr = { "1": "HZ_1", "5": "HZ_5", "10": "HZ_10" }[state.updateRate];
+      const saveLoc = { flash: "Flash", bbr: "BBR", both: "Both" }[state.saveLoc] || "Both";
+      const saveLocDefine = !on("saveLocation")
+        ? "3  // deliberately outside 0-2: saveConfig()'s switch in Better-GPS.h has no matching case,\n" +
+        "                                     // so the call falls through to delay(200) with no UBX bytes sent -- see the\n" +
+        "                                     // \"Save target\" panel in the Configurator for why this is safe"
+        : `SaveLocation::${saveLoc}`;
+
+      return `#pragma once
+
+// ==================== ENUMS ====================
+enum class UpdateRate : uint8_t {
+  HZ_1 = 1,
+  HZ_5 = 5,
+  HZ_10 = 10
+};
+
+enum class SaveLocation : uint8_t {
+  Flash = 0,
+  BBR = 1,
+  Both = 2
+};
+
+enum class FixType : uint8_t {
+  NoFix = 0,
+  DeadReckoning = 1,
+  Fix2D = 2,
+  Fix3D = 3,
+  GPSDeadReckoning = 4,
+  TimeOnly = 5
+};
+
+enum class PowerMode : uint8_t {
+  Continuous = 0,
+  PowerSave = 1
+};
+
+enum class DynamicModel : uint8_t {
+  Portable = 0,
+  Stationary = 2,
+  Pedestrian = 3,
+  Automotive = 4,
+  Sea = 5,
+  Airborne1g = 6,
+  Airborne2g = 7,
+  Airborne4g = 8
+};
+
+// ==================== CONFIGURATION ====================
+// Generated by the BetterGPS Configurator. The values below reflect the features you selected.
+
+#define UPDATE_RATE UpdateRate::${dr}
+
+// Startup data logging
+${boolDefine("STARTUP_POSITION", false)}
+${boolDefine("STARTUP_STATUS", false)}
+${boolDefine("STARTUP_SATELLITE_INFO", false)}
+${boolDefine("STARTUP_VERSION", false)}
+
+// Power saving
+${boolDefine("POWER_SAVING_ON", state.powerMode === "powersave")}
+
+// Flash = 0; BBR = 1; Both = 2;
+#define DEFAULT_SAVE_LOCATION ${saveLocDefine}
+
+// Response types
+${boolDefine("DISABLE_GGA", !!state.nmea.gga)}
+${boolDefine("DISABLE_GLL", !!state.nmea.gll)}
+${boolDefine("DISABLE_GSA", !!state.nmea.gsa)}
+${boolDefine("DISABLE_GSV", !!state.nmea.gsv)}
+${boolDefine("DISABLE_RMC", !!state.nmea.rmc)}
+${boolDefine("DISABLE_VTG", !!state.nmea.vtg)}
+
+// GNSS Configuration
+${boolDefine("GPS_ENABLED", true)}
+${boolDefine("GALILEO_ENABLED", on("gnss") && !!state.gnss.galileo)}
+${boolDefine("GLONASS_ENABLED", on("gnss") && !!state.gnss.glonass)}
+${boolDefine("BEIDOU_ENABLED", on("gnss") && !!state.gnss.beidou)}
+
+// Smoothing on startup
+${boolDefine("STARTUP_SMOOTHING", on("smoothing"))}
+
+// Timeout for UBX responses (milliseconds)
+#define UBX_RESPONSE_TIMEOUT 300
+
+// Timezone configuration (offset from UTC in hours)
+#define TIMEZONE_OFFSET ${state.tzOffset || "0.0"}
+${boolDefine("AUTO_DST", !!state.autoDst)}
+`;
+    }
+
+    function genIno() {
+      const M = state.module;
+      const isM10 = (M === "M10");
+      const defineKey = isM10 ? "NEO8MV2" : M;  // M10 inherits the NEO8MV2 HAS_xxx matrix, see below
+
+      const rxPin = state.ncTx ? "-1 /* GPS TX not wired -- no receive */" : (state.pinGpsTx || "-1");
+      const txPin = state.ncRx ? "-1 /* GPS RX not wired -- no command sending */" : (state.pinGpsRx || "-1");
+
+      let src = "";
+
+      src += `#include "Better-GPS.h"\n\n`;
+      src += `// ==================== GPS MODULE SELECTION ====================\n`;
+      src += `// Module selected in the Configurator: ${MODULES[M].label}\n`;
+      if (isM10) {
+        src += `//\n`;
+        src += `// NOTE: this board is sold as "GY-NEO8MV2", but based on the protocol version\n`;
+        src += `// (34.xx) it actually carries a u-blox M10 chip in the old NEO-8M board layout.\n`;
+        src += `// The HAS_xxx matrix therefore uses the NEO8MV2 branch (most features match),\n`;
+        src += `// EXCEPT:\n`;
+        src += `//   - Power save mode: u-blox's own documentation states this mode was removed\n`;
+        src += `//     from the M10 ROM firmware. If you turned Power mode to Power save, the\n`;
+        src += `//     module will most likely reject it with ACK-NAK.\n`;
+        src += `//   - RXM-RAWX (raw measurements): u-blox's documentation flags this as "not\n`;
+        src += `//     verified before release" -- it may work, but don't rely on it for\n`;
+        src += `//     anything critical (e.g. RTK post-processing) without checking first.\n\n`;
+      } else {
+        src += `\n`;
+      }
+      const lines3 = ["NEO6MV2", "NEO7MV2", "NEO8MV2"].map(k => k === defineKey ? `#define ${k}` : `// #define ${k}`);
+      src += lines3.join("\n") + "\n\n";
+
+      src += `// ==================== FEATURE AVAILABILITY BY MODULE ====================\n`;
+      src += `// Don't edit this block by hand -- it's derived from the module selection.\n\n`;
+      src += `#if defined(NEO8MV2)\n`;
+      src += `  #define HAS_NAV_SAT\n  #define HAS_NAV_PVT\n  #define HAS_NAV_ODO\n  #define HAS_RXM_RAWX\n  #define HAS_RXM_SFRBX\n  #define HAS_MULTI_GNSS\n  #define HAS_MON_HW\n  #define MODULE_NAME "${isM10 ? "M10 (GY-NEO8MV2 board)" : "NEO-8M v2"}"\n`;
+      src += `#elif defined(NEO7MV2)\n`;
+      src += `  #define HAS_NAV_PVT\n  #define HAS_MON_HW\n  #define MODULE_NAME "NEO-7M v2"\n`;
+      src += `#elif defined(NEO6MV2)\n`;
+      src += `  #define HAS_MON_HW\n  #define MODULE_NAME "NEO-6M v2"\n`;
+      src += `#else\n  #error "No GPS module selected."\n#endif\n\n`;
+
+      src += `// ==================== HARDWARE PINS ====================\n`;
+      src += `// GPS TX -> ESP32 RX (the module sends its responses on this line)\n`;
+      src += `#define GPS_RX_PIN  ${rxPin}\n`;
+      src += `// GPS RX -> ESP32 TX (the ESP32 sends commands on this line)\n`;
+      src += `#define GPS_TX_PIN  ${txPin}\n\n`;
+
+      src += `// ==================== LOOP TIMING ====================\n`;
+      src += `#define LOOP_INTERVAL_MS  1000   // how often the data-query loop runs\n`;
+      src += `#define WAIT_FOR_FIX_MS   15000  // how long setup() waits for a fix\n\n`;
+
+      src += `// ==================== GLOBAL OBJECT ====================\n`;
+      src += `BetterGPS gps;\n\n`;
+
+      // ---- helper prints ----
+      src += `// ==================== HELPER FUNCTIONS ====================\n\n`;
+      src += `void printSeparator(const char* title) {\n  Serial.println();\n  Serial.print(F("===== "));\n  Serial.print(title);\n  Serial.println(F(" ====="));\n}\n\n`;
+      src += `void printFixType(FixType ft) {\n  switch (ft) {\n    case FixType::NoFix:            Serial.print(F("No Fix"));                break;\n    case FixType::DeadReckoning:    Serial.print(F("Dead Reckoning"));        break;\n    case FixType::Fix2D:            Serial.print(F("2D Fix"));                break;\n    case FixType::Fix3D:            Serial.print(F("3D Fix"));                break;\n    case FixType::GPSDeadReckoning: Serial.print(F("GPS + Dead Reckoning"));  break;\n    case FixType::TimeOnly:         Serial.print(F("Time Only"));             break;\n    default:                        Serial.print(F("Unknown"));               break;\n  }\n}\n\n`;
+
+      if (on("satellites")) {
+        src += `void printGnssName(uint8_t gnssId) {\n  switch (gnssId) {\n    case 0: Serial.print(F("GPS"));     break;\n    case 1: Serial.print(F("SBAS"));    break;\n    case 2: Serial.print(F("Galileo")); break;\n    case 3: Serial.print(F("BeiDou"));  break;\n    case 5: Serial.print(F("QZSS"));    break;\n    case 6: Serial.print(F("GLONASS")); break;\n    default: Serial.print(F("Unknown")); break;\n  }\n}\n\n`;
+      }
+
+      if (on("timeutc")) {
+        src += `void printPadded2(uint8_t v) {\n  if (v < 10) Serial.print(F("0"));\n  Serial.print(v);\n}\n\n`;
+      }
+
+      // ---- per-feature blocks ----
+      src += `// ==================== FEATURE BLOCKS ====================\n\n`;
+
+      const blocks = []; // {name, body}
+
+      if (on("status")) blocks.push(["readStatus", `void readStatus() {
+  printSeparator("NAV-STATUS: Fix status");
+  gps.requestStatus();
+  delay(300);
+  gps.update();
+
+  if (gps.isStatusReady()) {
+    const NAV_STATUS_Response& s = gps.getStatus();
+    Serial.print(F("  Fix type  : ")); printFixType(gps.getFixType()); Serial.println();
+    Serial.print(F("  TTFF      : ")); Serial.print(s.ttff); Serial.println(F(" ms"));
+    Serial.print(F("  hasFix()  : ")); Serial.println(gps.hasFix() ? F("YES") : F("NO"));
+  } else {
+    Serial.println(F("  No response"));
+  }
+}`]);
+
+      if (on("position")) blocks.push(["readPosition", `void readPosition() {
+  printSeparator("NAV-POSLLH: Position");
+  gps.requestPosition();
+  delay(300);
+  gps.update();
+
+  if (gps.isPositionReady()) {
+    const NAV_POSLLH_Response& p = gps.getPOSLLH();
+    Serial.print(F("  Lat : ")); Serial.println(p.lat / 1e7, 7);
+    Serial.print(F("  Lon : ")); Serial.println(p.lon / 1e7, 7);
+    Serial.print(F("  Alt : ")); Serial.print(p.hMSL / 1000.0, 2); Serial.println(F(" m"));
+  } else {
+    Serial.println(F("  No response"));
+  }
+}`]);
+
+      if (on("pvt")) blocks.push(["readPVT", `void readPVT() {
+  printSeparator("NAV-PVT: Position + velocity + time");
+  gps.requestPVT();
+  delay(300);
+  gps.update();
+
+  if (gps.isPVTReady()) {
+    const NAV_PVT_Response& p = gps.getPVT();
+    Serial.print(F("  Satellites : ")); Serial.println(p.numSV);
+    Serial.print(F("  Speed      : ")); Serial.print(p.gSpeed / 1000.0, 2); Serial.println(F(" m/s"));
+    Serial.print(F("  Fix type   : ")); Serial.println(p.fixType);
+  } else {
+    Serial.println(F("  No response"));
+  }
+}`]);
+
+      if (on("dop")) blocks.push(["readDOP", `void readDOP() {
+  printSeparator("NAV-DOP: Accuracy estimate");
+  gps.requestDOP();
+  delay(300);
+  gps.update();
+
+  if (gps.isDOPReady()) {
+    Serial.print(F("  HDOP : ")); Serial.println(gps.getHDOP(), 2);
+  } else {
+    Serial.println(F("  No response"));
+  }
+}`]);
+
+      if (on("velocity")) blocks.push(["readVelocity", `void readVelocity() {
+  printSeparator("NAV-VELNED: Velocity");
+  gps.requestVelocity();
+  delay(300);
+  gps.update();
+
+  if (gps.isVelocityReady()) {
+    Serial.print(F("  Speed   : ")); Serial.print(gps.getSpeedKmph(), 2); Serial.println(F(" km/h"));
+    Serial.print(F("  Heading : ")); Serial.print(gps.getCourse(), 2);   Serial.println(F(" deg"));
+  } else {
+    Serial.println(F("  No response"));
+  }
+}`]);
+
+      if (on("timeutc")) blocks.push(["readTimeUTC", `void readTimeUTC() {
+  printSeparator("NAV-TIMEUTC: UTC time");
+  gps.requestTimeUTC();
+  delay(300);
+  gps.update();
+
+  if (gps.isTimeUTCReady()) {
+    const NAV_TIMEUTC_Response& t = gps.getTimeUTC();
+    Serial.print(F("  UTC : "));
+    Serial.print(t.year); Serial.print(F("-"));
+    printPadded2(t.month); Serial.print(F("-"));
+    printPadded2(t.day);   Serial.print(F(" "));
+    printPadded2(t.hour);  Serial.print(F(":"));
+    printPadded2(t.min);   Serial.print(F(":"));
+    printPadded2(t.sec);   Serial.println();
+  } else {
+    Serial.println(F("  No response"));
+  }
+}`]);
+
+      if (on("satellites")) blocks.push(["readSatellites", `void readSatellites() {
+  printSeparator("NAV-SAT: Satellite info");
+  gps.requestSatellites();
+  delay(500);
+  gps.update();
+
+  Serial.print(F("  In view : ")); Serial.println(gps.getSatelliteCount());
+  Serial.print(F("  In use  : ")); Serial.println(gps.getUsedSatelliteCount());
+  Serial.print(F("  Signal  : ")); Serial.print(gps.getSignalQuality()); Serial.println(F(" / 100"));
+
+  const NAV_SAT_Response& sats = gps.getSatellites();
+  for (int i = 0; i < sats.numSvs; i++) {
+    const SatelliteInfo& sv = sats.satellites[i];
+    if (!sv.used) continue;  // only satellites actually used in the navigation solution
+    Serial.print(F("    "));
+    printGnssName(sv.gnssId);
+    Serial.print(F(" #")); Serial.print(sv.svId);
+    Serial.print(F("  cno=")); Serial.print(sv.cno); Serial.println(F(" dBHz"));
+  }
+}`]);
+
+      if (on("odometer")) blocks.push(["readOdometer", `void readOdometer() {
+  printSeparator("NAV-ODO: Odometer");
+  gps.requestOdometer();
+  delay(300);
+  gps.update();
+
+  if (gps.isOdometerReady()) {
+    const NAV_ODO_Response& o = gps.getOdometer();
+    Serial.print(F("  Since reset : ")); Serial.print(o.distance);      Serial.println(F(" m"));
+    Serial.print(F("  Total       : ")); Serial.print(o.totalDistance); Serial.println(F(" m"));
+  } else {
+    Serial.println(F("  No response"));
+  }
+}`]);
+
+      if (on("rawMeasurements")) blocks.push(["readRawMeasurements", `void readRawMeasurements() {
+  printSeparator("RXM-RAWX: Raw measurements");
+  gps.requestRawMeasurements();
+  delay(300);
+  gps.update();
+
+  if (gps.isRawMeasurementsReady()) {
+    const RXM_RAWX_Response& r = gps.getRawMeasurements();
+    Serial.print(F("  Measurement count : ")); Serial.println(r.numMeas);
+  } else {
+    Serial.println(F("  No response"));
+  }
+}`]);
+
+      if (on("subframe")) blocks.push(["readSubframe", `void readSubframe() {
+  printSeparator("RXM-SFRBX: Subframe data");
+  gps.requestSubframeData();
+  delay(300);
+  gps.update();
+
+  if (gps.isSubframeDataReady()) {
+    Serial.println(F("  Subframe data received (see dwrd[] in getSubframeData())"));
+  } else {
+    Serial.println(F("  No response"));
+  }
+}`]);
+
+      if (on("hwStatus")) blocks.push(["readHwStatus", `void readHwStatus() {
+  printSeparator("MON-HW: Hardware status");
+  gps.requestHardwareStatus();
+  delay(300);
+  gps.update();
+
+  if (gps.isHardwareStatusReady()) {
+    Serial.print(F("  Antenna OK : ")); Serial.println(gps.isAntennaOK() ? F("yes") : F("no"));
+    Serial.print(F("  Jamming    : ")); Serial.println(gps.getJammingLevel());
+  } else {
+    Serial.println(F("  No response"));
+  }
+}`]);
+
+      if (on("cacheGetters")) blocks.push(["printCacheGetters", `void printCacheGetters() {
+  printSeparator("Cached position getters");
+  Serial.print(F("  getLatitude()  : ")); Serial.println(gps.getLatitude(), 7);
+  Serial.print(F("  getLongitude() : ")); Serial.println(gps.getLongitude(), 7);
+  Serial.print(F("  getAltitude()  : ")); Serial.print(gps.getAltitude(), 2); Serial.println(F(" m"));
+  Serial.print(F("  hasFix()       : ")); Serial.println(gps.hasFix() ? F("YES") : F("NO"));
+}`]);
+
+      if (on("utm")) blocks.push(["printUTM", `void printUTM() {
+  printSeparator("UTM coordinate conversion");
+  if (gps.hasFix()) {
+    UTMCoordinate utm = gps.getCurrentUTM();
+    Serial.print(F("  Zone : ")); Serial.print(utm.zone); Serial.println(utm.band);
+    Serial.print(F("  E    : ")); Serial.println(utm.easting, 1);
+    Serial.print(F("  N    : ")); Serial.println(utm.northing, 1);
+  } else {
+    Serial.println(F("  A fix is needed for UTM conversion"));
+  }
+}`]);
+
+      if (on("distance")) {
+        const dLat = state.distance.lat || "0.0";
+        const dLon = state.distance.lon || "0.0";
+        blocks.push(["printDistance", `void printDistance() {
+  printSeparator("Distance calculation (Haversine)");
+  if (gps.hasFix()) {
+    double dist = gps.calculateDistance(
+      gps.getLatitude(), gps.getLongitude(),
+      ${dLat}, ${dLon}   // target
+    );
+    Serial.print(F("  Distance to target: "));
+    if (dist >= 1000.0) { Serial.print(dist / 1000.0, 2); Serial.println(F(" km")); }
+    else                { Serial.print(dist, 1);          Serial.println(F(" m"));  }
+  } else {
+    Serial.println(F("  A fix is needed for the distance calculation"));
+  }
+}`]);
+      }
+
+      if (on("geofence")) {
+        const gLat = state.geofence.lat || "0.0";
+        const gLon = state.geofence.lon || "0.0";
+        const gRad = state.geofence.radius || "0";
+        blocks.push(["checkGeofence", `void checkGeofence() {
+  printSeparator("Geofence");
+  // setGeofence() only needs to be called once -- see setup()
+  if (gps.hasFix()) {
+    Serial.print(F("  Status : ")); Serial.println(gps.isInGeofence() ? F("INSIDE") : F("OUTSIDE"));
+    if (gps.geofenceStateChanged()) {
+      Serial.println(gps.isInGeofence() ? F("  -> Boundary crossed: ENTERED") : F("  -> Boundary crossed: EXITED"));
+    }
+  } else {
+    Serial.println(F("  A fix is needed to check the geofence"));
+  }
+}`]);
+      }
+
+      if (on("validate")) blocks.push(["validateSetup", `void validateSetup() {
+  printSeparator("Configuration check");
+  Serial.print(F("  testCommunication()     : "));
+  Serial.println(gps.testCommunication() ? F("OK") : F("FAILED"));
+  Serial.print(F("  validateConfiguration() : "));
+  Serial.println(gps.validateConfiguration() ? F("OK") : F("FAILED (no fix or antenna issue)"));
+}`]);
+
+      if (on("saveConfigCall")) {
+        const manualSaveTarget = { flash: "Flash", bbr: "BBR", both: "Both" }[state.saveLoc] || "Both";
+        blocks.push(["saveConfigNow", `void saveConfigNow() {
+  printSeparator("Save configuration (CFG-CFG)");
+  gps.saveConfig(SaveLocation::${manualSaveTarget});
+  Serial.println(F("  Saved"));
+}`]);
+      }
+
+      const anyResetSelected = state.reset.hot || state.reset.warm || state.reset.cold;
+      if (on("reset") && anyResetSelected) {
+        let resetBody = `void runResets() {\n`;
+        if (state.reset.hot) resetBody += `  // gps.resetHot();   // ~1s blocking delay, keeps ephemeris/almanac/position\n`;
+        if (state.reset.warm) resetBody += `  // gps.resetWarm();  // ~2s blocking delay, clears ephemeris\n`;
+        if (state.reset.cold) resetBody += `  // gps.resetCold();  // ~3s blocking delay, clears everything\n`;
+        resetBody += `  // The lines above are commented out by default -- only uncomment them\n  // if you actually want to restart / clear the module.\n}`;
+        blocks.push(["runResets", resetBody]);
+      }
+
+      blocks.forEach(([name, body]) => { src += body + "\n\n"; });
+
+      // ---- setup() ----
+      src += `// ==================== SETUP ====================\n\n`;
+      src += `void setup() {\n`;
+      src += `  Serial.begin(115200);\n  delay(500);\n\n`;
+      src += `  Serial.println(F("\\n=== BetterGPS init ==="));\n`;
+      src += `  Serial.print(F("Module: ")); Serial.println(F(MODULE_NAME));\n\n`;
+      src += `  gps.begin(GPS_RX_PIN, GPS_TX_PIN);\n`;
+      src += `  Serial.println(F("GPS initialized."));\n\n`;
+
+      // one-time config calls
+      src += `  // --- One-time configuration ---\n`;
+      if (on("dynamicModel")) {
+        const modelMap = { portable: "Portable", stationary: "Stationary", pedestrian: "Pedestrian", automotive: "Automotive" };
+        src += `  gps.setDynamicModel(DynamicModel::${modelMap[state.dynModel] || "Portable"});\n`;
+      }
+      if (on("gnss")) {
+        src += `  gps.setGNSS(GPS_ENABLED, GALILEO_ENABLED, GLONASS_ENABLED, BEIDOU_ENABLED);\n`;
+      }
+      if (on("powerMode")) {
+        const psWarning = (isM10 && state.powerMode === "powersave") ? "  // NOTE: Power save mode is not supported on the M10 chip -- see the comment at the top of this file\n" : "";
+        src += psWarning;
+        src += `  gps.setPowerMode(${state.powerMode === "powersave" ? "PowerMode::PowerSave" : "PowerMode::Continuous"});\n`;
+      }
+      if (on("smoothing")) {
+        src += `  gps.setSmoothing(${on("smoothing") ? "true" : "false"});\n`;
+      }
+      if (on("timezone")) {
+        src += `  gps.setTimezone(${state.tzOffset || "0.0"}, ${state.autoDst ? "true" : "false"});\n`;
+      }
+      if (on("geofence")) {
+        const gLat = state.geofence.lat || "0.0";
+        const gLon = state.geofence.lon || "0.0";
+        const gRad = state.geofence.radius || "0";
+        src += `  gps.setGeofence(${gLat}, ${gLon}, ${gRad});  // center lat, lon, radius (m)\n`;
+      }
+      src += `\n`;
+
+      src += `  // --- Wait for the first fix ---\n`;
+      src += `  Serial.println(F("Waiting for fix..."));\n`;
+      src += `  unsigned long waitStart = millis();\n`;
+      src += `  while (!gps.hasFix() && millis() - waitStart < WAIT_FOR_FIX_MS) {\n`;
+      src += `    gps.update();\n    delay(50);\n  }\n`;
+      src += `  Serial.println(gps.hasFix() ? F("Got a fix.") : F("No fix within the deadline -- continuing anyway."));\n`;
+      src += `}\n\n`;
+
+      // ---- loop() ----
+      src += `// ==================== LOOP ====================\n\n`;
+      src += `void loop() {\n`;
+      src += `  gps.update();\n\n`;
+      src += `  static unsigned long lastRun = 0;\n`;
+      src += `  if (millis() - lastRun < LOOP_INTERVAL_MS) return;\n`;
+      src += `  lastRun = millis();\n\n`;
+
+      const loopCalls = {
+        status: "readStatus", position: "readPosition", pvt: "readPVT", dop: "readDOP",
+        velocity: "readVelocity", timeutc: "readTimeUTC", satellites: "readSatellites",
+        odometer: "readOdometer", rawMeasurements: "readRawMeasurements", subframe: "readSubframe",
+        hwStatus: "readHwStatus", cacheGetters: "printCacheGetters", utm: "printUTM",
+        distance: "printDistance", geofence: "checkGeofence", validate: "validateSetup",
+        saveConfigCall: "saveConfigNow",
+      };
+      if (on("reset") && anyResetSelected) loopCalls.reset = "runResets";
+      Object.entries(loopCalls).forEach(([fid, fname]) => {
+        if (on(fid)) src += `  ${fname}();\n`;
+      });
+      if (Object.keys(loopCalls).every(fid => !on(fid))) {
+        src += `  // No data queries selected -- only gps.update() runs.\n`;
+      }
+      src += `}\n`;
+
+      return src;
+    }
+
+    /* =====================================================================
+       FILE ASSEMBLY, SYNTAX HIGHLIGHTING, DOWNLOAD
+       ===================================================================== */
+
+    function buildFiles() {
+      return {
+        ino: { label: "BetterGPS.ino", content: genIno() },
+        config: { label: "Better-GPS-config.h", content: genConfigH() },
+        main: { label: "Better-GPS.h", content: STATIC_MAIN_H },
+        commands: { label: "Better-GPS-commands.h", content: STATIC_COMMANDS_H },
+        structs: { label: "Better-GPS-structs.h", content: STATIC_STRUCTS_H },
+      };
+    }
+
+    function highlightCpp(code) {
+      // Tokenizes in a single pass (comment / string / keyword / type) so an
+      // already-inserted <span> never sits in front of a later replace() - the
+      // previous version chained several replace() calls, each of which could
+      // match inside a class="…" attribute it had just inserted itself (e.g.
+      // the word "class" getting highlighted again inside its own span tag).
+      const KEYWORDS = new Set(["void", "bool", "const", "uint8_t", "uint16_t", "uint32_t", "int32_t", "int8_t", "int16_t", "double", "float", "struct", "enum", "class", "return", "if", "else", "while", "for", "switch", "case", "break", "default", "static", "include", "define", "pragma", "ifdef", "ifndef", "elif", "endif", "error", "F"]);
+      const TYPES = new Set(["BetterGPS", "FixType", "PowerMode", "SaveLocation", "DynamicModel", "UpdateRate", "NAV_STATUS_Response", "NAV_POSLLH_Response", "NAV_PVT_Response", "NAV_DOP_Response", "NAV_VELNED_Response", "NAV_TIMEUTC_Response", "NAV_SAT_Response", "NAV_ODO_Response", "RXM_RAWX_Response", "RXM_SFRBX_Response", "MON_HW_Response", "UTMCoordinate", "Serial", "HardwareSerial"]);
+
+      const tokenRe = /(\/\/[^\n]*)|("(?:[^"\\]|\\.)*")|(\b[A-Za-z_][A-Za-z0-9_]*\b)/g;
+      let out = "";
+      let last = 0;
+      let m;
+      while ((m = tokenRe.exec(code)) !== null) {
+        out += escapeHtml(code.slice(last, m.index));
+        const [full, comment, str, word] = m;
+        if (comment !== undefined) {
+          out += '<span class="cm">' + escapeHtml(comment) + '</span>';
+        } else if (str !== undefined) {
+          out += '<span class="st">' + escapeHtml(str) + '</span>';
+        } else if (word !== undefined) {
+          if (KEYWORDS.has(word)) out += '<span class="kw">' + escapeHtml(word) + '</span>';
+          else if (TYPES.has(word)) out += '<span class="ty">' + escapeHtml(word) + '</span>';
+          else out += escapeHtml(word);
+        }
+        last = m.index + full.length;
+      }
+      out += escapeHtml(code.slice(last));
+      return out;
+    }
+
+    function renderOutput() {
+      const files = buildFiles();
+      const tabsEl = document.getElementById("fileTabs");
+      const codeEl = document.getElementById("codeOutput");
+      const dlRow = document.getElementById("downloadRow");
+
+      tabsEl.innerHTML = "";
+      Object.entries(files).forEach(([key, f]) => {
+        const tab = document.createElement("button");
+        tab.className = "file-tab" + (state.activeFile === key ? " active" : "");
+        tab.textContent = f.label;
+        tab.addEventListener("click", () => {
+          state.activeFile = key;
+          renderOutput();
+        });
+        tabsEl.appendChild(tab);
+      });
+
+      const active = files[state.activeFile] || files.ino;
+      codeEl.innerHTML = highlightCpp(active.content);
+
+      dlRow.innerHTML = "";
+      const dlAllBtn = document.createElement("button");
+      dlAllBtn.className = "dl-btn primary";
+      dlAllBtn.textContent = "⭳ Download all 5 files";
+      dlAllBtn.addEventListener("click", () => downloadAll(files));
+      dlRow.appendChild(dlAllBtn);
+
+      const dlOneBtn = document.createElement("button");
+      dlOneBtn.className = "dl-btn";
+      dlOneBtn.textContent = "⭳ " + active.label;
+      dlOneBtn.addEventListener("click", () => downloadSingle(active.label, active.content));
+      dlRow.appendChild(dlOneBtn);
+
+      const copyBtn = document.createElement("button");
+      copyBtn.className = "dl-btn";
+      copyBtn.textContent = "Copy";
+      copyBtn.addEventListener("click", () => {
+        navigator.clipboard.writeText(active.content).then(() => {
+          copyBtn.innerHTML = '<span class="copied">Copied ✓</span>';
+          setTimeout(() => { copyBtn.textContent = "Copy"; }, 1400);
+        });
+      });
+      dlRow.appendChild(copyBtn);
+
+      renderSummary();
+    }
+
+    function downloadSingle(filename, content) {
+      const blob = new Blob([content], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function downloadAll(files) {
+      // simple, dependency-free approach: fire off each file with a small delay
+      // between them so the browser doesn't block it as a multi-download popup
+      Object.values(files).forEach((f, i) => {
+        setTimeout(() => downloadSingle(f.label, f.content), i * 180);
+      });
+    }
+
+    /* =====================================================================
+       SUMMARY PANEL
+       ===================================================================== */
+
+    function renderSummary() {
+      const list = document.getElementById("summaryList");
+      const items = [];
+
+      items.push(["Module", MODULES[state.module].label]);
+      items.push(["GPS TX → ESP32 RX", state.ncTx || !state.pinGpsTx ? "NC" : "GPIO " + state.pinGpsTx]);
+      items.push(["GPS RX → ESP32 TX", state.ncRx || !state.pinGpsRx ? "NC" : "GPIO " + state.pinGpsRx]);
+
+      const activeFeatures = FEATURES.filter(f => on(f.id) && isFeatureAvailable(f) && f.section !== undefined);
+      items.push(["Active features", String(activeFeatures.filter(f => !f.alwaysOn || on(f.id)).length) + " / " + FEATURES.length]);
+
+      if (list) {
+        list.innerHTML = items.map(([k, v]) => `<li><span>${escapeHtml(k)}</span><span class="v">${escapeHtml(v)}</span></li>`).join("");
+      }
+    }
+
+    /* =====================================================================
+       MAIN CONTROLLER
+       ===================================================================== */
+
+    function regenerate() {
+      renderOutput();
+    }
+
+    // initial render
+    drawSignalDiagram();
+    updateWiringWarning();
+    renderFeaturePanels();
+    regenerate();
+
+  </script>
+
+</body>
+
+</html>

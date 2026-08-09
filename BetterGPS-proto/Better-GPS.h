@@ -355,9 +355,12 @@ private:
 
       switch (state) {
         case 0:
-          if (c == 0xB5) state = 1;
+          if (c == 0xB5)
+            state = 1;
           break;
-        case 1: state = (c == 0x62) ? 2 : 0; break;
+        case 1:
+          state = (c == 0x62) ? 2 : 0;
+          break;
         case 2:
           cls = c;
           state = 3;
@@ -367,19 +370,31 @@ private:
           state = 4;
           break;
         // Length (2 bytes) and payload (if 2 bytes ACK) skip
-        case 4: state = 5; break;  // len LSB
-        case 5: state = 6; break;  // len MSB
-        case 6: state = 7; break;  // payload[0] = ackClass
-        case 7: state = 8; break;  // payload[1] = ackId
-        case 8: state = 9; break;  // ckA
-        case 9:                    // ckB
+        case 4:
+          state = 5;
+          break;  // len LSB
+        case 5:
+          state = 6;
+          break;  // len MSB
+        case 6:
+          state = 7;
+          break;  // payload[0] = ackClass
+        case 7:
+          state = 8;
+          break;  // payload[1] = ackId
+        case 8:
+          state = 9;
+          break;  // ckA
+        case 9:   // ckB
           if (cls == 0x05) {
             return (id == 0x01);  // true = ACK-ACK, false = ACK-NAK
           }
           // No ACK => keep searching
           state = 0;
           break;
-        default: state = 0; break;
+        default:
+          state = 0;
+          break;
       }
     }
     return false;
@@ -1118,6 +1133,15 @@ public:
     return satData.valid;
   }
 
+  bool waitForStatus(uint32_t timeout_ms) {
+    unsigned long start = millis();
+    while (!statusData.valid && (millis() - start) < timeout_ms) {
+      update();
+      delay(10);
+    }
+    return statusData.valid;
+  }
+
   uint8_t getUsedSatelliteCount() {
     if (!satData.valid)
       return 0;
@@ -1158,19 +1182,17 @@ public:
   }
 
   bool testCommunication() {
-    requestVersion();
-
-    unsigned long start = millis();
-    while (millis() - start < 500) {
-      processUBX();
-      delay(10);
-    }
-
-    // Send CFG-PRT and wait for ACK
+    while (gpsSerial.available()) gpsSerial.read();
     sendUBX(UBX_POLL_STATUS, sizeof(UBX_POLL_STATUS));
-    delay(100);
-    processUBX();
-    return statusData.valid;  // Valid response => successful communication
+    unsigned long start = millis();
+    while (millis() - start < UBX_RESPONSE_TIMEOUT) {
+      processUBX();
+      if (statusData.valid) {
+        return true;
+      }
+      delay(1);
+    }
+    return false;
   }
 
   bool validateConfiguration() {

@@ -54,12 +54,12 @@ enum class DynamicModel : uint8_t {
 #define DEFAULT_SAVE_LOCATION SaveLocation::Both
 
 // Response types
-#define DISABLE_GGA false
-#define DISABLE_GLL false
-#define DISABLE_GSA false
-#define DISABLE_GSV false
-#define DISABLE_RMC false
-#define DISABLE_VTG false
+#define DISABLE_GGA true
+#define DISABLE_GLL true
+#define DISABLE_GSA true
+#define DISABLE_GSV true
+#define DISABLE_RMC true
+#define DISABLE_VTG true
 
 // GNSS Configuration
 // GPS: Global Positioning System (USA) - Most widely supported, 31 satellites
@@ -81,7 +81,7 @@ enum class DynamicModel : uint8_t {
 #define STARTUP_SMOOTHING false
 
 // Timeout for UBX responses (milliseconds)
-#define UBX_RESPONSE_TIMEOUT 300
+#define UBX_RESPONSE_TIMEOUT 1000
 
 // Timezone configuration (offset from UTC in hours)
 // Examples: UTC+1 = 1, UTC-5 = -5, UTC+5:30 = 5.5
